@@ -108,7 +108,7 @@ def get_postcode_records(limit=None, bundesland=None):
     return records_df.to_dict(orient="records")
 
 
-def get_geojson_features(limit=200, bundesland=None):
+def get_geojson_features(limit=None, bundesland=None):
     if not geojson_exists():
         return None
 

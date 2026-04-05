@@ -2,15 +2,15 @@ import { useEffect, useMemo } from "react";
 import { GeoJSON, MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { APP_CONFIG } from "./config";
 
-function FitToGeoJSON({ geoSample }) {
+function FitToGeoJSON({ geoFeatures }) {
   const map = useMap();
 
   useEffect(() => {
-    if (!geoSample?.features?.length) {
+    if (!geoFeatures?.features?.length) {
       return;
     }
 
-    const geoJsonLayer = window.L.geoJSON(geoSample);
+    const geoJsonLayer = window.L.geoJSON(geoFeatures);
     const bounds = geoJsonLayer.getBounds();
 
     if (bounds.isValid()) {
@@ -20,7 +20,7 @@ function FitToGeoJSON({ geoSample }) {
         animate: true,
       });
     }
-  }, [geoSample, map]);
+  }, [geoFeatures, map]);
 
   return null;
 }
@@ -33,8 +33,8 @@ function buildFeatureCollection(features) {
 }
 
 function MapView({
-  geoSample,
-  isLoadingMarkers,
+  geoFeatures,
+  isLoadingGeoFeatures,
   selectedPlz = [],
   togglePlz,
   groups = [],
@@ -64,50 +64,54 @@ function MapView({
     return postcodeColorMap;
   }, [groups, assignments]);
 
-  const { neutralFeatures, assignedFeatures, selectedNeutralFeatures, selectedAssignedFeatures } =
-    useMemo(() => {
-      const allFeatures = geoSample?.features || [];
+  const {
+    neutralFeatures,
+    assignedFeatures,
+    selectedNeutralFeatures,
+    selectedAssignedFeatures,
+  } = useMemo(() => {
+    const allFeatures = geoFeatures?.features || [];
 
-      const neutral = [];
-      const assigned = [];
-      const selectedNeutral = [];
-      const selectedAssigned = [];
+    const neutral = [];
+    const assigned = [];
+    const selectedNeutral = [];
+    const selectedAssigned = [];
 
-      for (const feature of allFeatures) {
-        const postcode = String(feature?.properties?.postcode || "").trim();
-        const hasAssignment = Boolean(assignmentColorMap[postcode]);
-        const isSelected = selectedSet.has(postcode);
+    for (const feature of allFeatures) {
+      const postcode = String(feature?.properties?.postcode || "").trim();
+      const hasAssignment = Boolean(assignmentColorMap[postcode]);
+      const isSelected = selectedSet.has(postcode);
 
-        if (!postcode) {
-          neutral.push(feature);
-          continue;
-        }
-
-        if (isSelected && hasAssignment) {
-          selectedAssigned.push(feature);
-          continue;
-        }
-
-        if (isSelected && !hasAssignment) {
-          selectedNeutral.push(feature);
-          continue;
-        }
-
-        if (hasAssignment) {
-          assigned.push(feature);
-          continue;
-        }
-
+      if (!postcode) {
         neutral.push(feature);
+        continue;
       }
 
-      return {
-        neutralFeatures: neutral,
-        assignedFeatures: assigned,
-        selectedNeutralFeatures: selectedNeutral,
-        selectedAssignedFeatures: selectedAssigned,
-      };
-    }, [geoSample, selectedSet, assignmentColorMap]);
+      if (isSelected && hasAssignment) {
+        selectedAssigned.push(feature);
+        continue;
+      }
+
+      if (isSelected && !hasAssignment) {
+        selectedNeutral.push(feature);
+        continue;
+      }
+
+      if (hasAssignment) {
+        assigned.push(feature);
+        continue;
+      }
+
+      neutral.push(feature);
+    }
+
+    return {
+      neutralFeatures: neutral,
+      assignedFeatures: assigned,
+      selectedNeutralFeatures: selectedNeutral,
+      selectedAssignedFeatures: selectedAssigned,
+    };
+  }, [geoFeatures, selectedSet, assignmentColorMap]);
 
   const selectedCountLabel =
     selectedPlz.length === 0
@@ -126,7 +130,7 @@ function MapView({
         background: "#f8fafc",
       }}
     >
-      {isLoadingMarkers && (
+      {isLoadingGeoFeatures && (
         <div
           style={{
             position: "absolute",
@@ -187,9 +191,9 @@ function MapView({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {geoSample?.features?.length ? (
+        {geoFeatures?.features?.length ? (
           <>
-            <FitToGeoJSON geoSample={geoSample} />
+            <FitToGeoJSON geoFeatures={geoFeatures} />
 
             {neutralFeatures.length > 0 && (
               <GeoJSON

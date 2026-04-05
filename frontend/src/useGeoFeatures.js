@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchGeoFeatures } from "./api";
 
-function useGeoFeatures(limit = 1000, bundesland = "") {
+function useGeoFeatures(limit = null, bundesland = "") {
   const [geoFeatures, setGeoFeatures] = useState(null);
   const [isLoadingGeoFeatures, setIsLoadingGeoFeatures] = useState(true);
 

@@ -418,8 +418,8 @@ function AppContent() {
         }}
       >
         <MapSection
-          geoSample={geoFeaturesData}
-          isLoadingMarkers={isLoadingGeoFeatures}
+          geoFeatures={geoFeaturesData}
+          isLoadingGeoFeatures={isLoadingGeoFeatures}
           selectedPlz={selectedPlz}
           focusedPlz={focusedPlz}
           togglePlz={togglePlz}

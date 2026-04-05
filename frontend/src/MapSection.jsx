@@ -2,8 +2,8 @@ import MapLegend from "./MapLegend";
 import MapView from "./MapView";
 
 function MapSection({
-  geoSample,
-  isLoadingMarkers,
+  geoFeatures,
+  isLoadingGeoFeatures,
   selectedPlz,
   focusedPlz,
   togglePlz,
@@ -77,8 +77,8 @@ function MapSection({
       </div>
 
       <MapView
-        geoSample={geoSample}
-        isLoadingMarkers={isLoadingMarkers}
+        geoFeatures={geoFeatures}
+        isLoadingGeoFeatures={isLoadingGeoFeatures}
         selectedPlz={selectedPlz}
         focusedPlz={focusedPlz}
         togglePlz={togglePlz}
