@@ -5,4 +5,5 @@ pandas
 geopandas
 psycopg2-binary
 sqlalchemy
-pip install python-multipart
+python-multipart
+python-dotenv
