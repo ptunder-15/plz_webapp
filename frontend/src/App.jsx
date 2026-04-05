@@ -221,7 +221,7 @@ function AppContent() {
             marginBottom: "10px",
           }}
         >
-          PLZ Web App
+          Standard Grid
         </div>
 
         <div
@@ -232,7 +232,7 @@ function AppContent() {
             letterSpacing: "-0.01em",
           }}
         >
-          Gebiete auswählen, Gruppen zuweisen und später gemeinsam nutzen.
+          Gebiete auswählen, Gruppen zuweisen und geschützt gemeinsam nutzen.
         </div>
       </div>
 
