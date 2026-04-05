@@ -25,13 +25,22 @@ export async function fetchPostcodeRecords(bundesland = "") {
   return response.json();
 }
 
-export async function fetchGeoFeatures(limit = 1000, bundesland = "") {
-  const query = new URLSearchParams({ limit: String(limit) });
-  if (bundesland) query.append("bundesland", bundesland);
+export async function fetchGeoFeatures(limit = null, bundesland = "") {
+  const query = new URLSearchParams();
 
-  const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/markers/geo-features?${query.toString()}`
-  );
+  if (limit !== null && limit !== undefined) {
+    query.append("limit", String(limit));
+  }
+
+  if (bundesland) {
+    query.append("bundesland", bundesland);
+  }
+
+  const url = query.toString()
+    ? `${APP_CONFIG.api.baseUrl}/markers/geo-features?${query.toString()}`
+    : `${APP_CONFIG.api.baseUrl}/markers/geo-features`;
+
+  const response = await fetch(url);
 
   if (!response.ok) throw new Error("GeoJSON-Features konnten nicht geladen werden.");
   return response.json();

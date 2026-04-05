@@ -70,7 +70,7 @@ def get_postcode_records_route(
 
 @router.get("/geo-features")
 def get_geo_features(
-    limit: int = Query(default=1000, ge=1, le=3000),
+    limit: Optional[int] = Query(default=None, ge=1),
     bundesland: Optional[str] = Query(default=None),
 ):
     features = get_geojson_features(limit=limit, bundesland=bundesland)

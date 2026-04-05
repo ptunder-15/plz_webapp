@@ -29,7 +29,12 @@ def load_geojson_gdf():
         gdf["plz2"] = gdf["plz2"].astype(str).str.zfill(2)
 
     if "bundesland" in gdf.columns:
-        gdf["bundesland"] = gdf["bundesland"].fillna("").astype(str)
+        gdf["bundesland"] = (
+            gdf["bundesland"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
 
     if "postcode" in gdf.columns:
         gdf = gdf.sort_values("postcode").reset_index(drop=True)
@@ -39,14 +44,9 @@ def load_geojson_gdf():
 
 def get_geojson_metadata():
     if not geojson_exists():
-        return {
-            "exists": False,
-            "row_count": 0,
-            "columns": [],
-        }
+        return {"exists": False, "row_count": 0, "columns": []}
 
     gdf = load_geojson_gdf()
-
     return {
         "exists": True,
         "row_count": len(gdf),
@@ -59,19 +59,11 @@ def get_available_bundeslaender():
         return []
 
     gdf = load_geojson_gdf()
-
     if "bundesland" not in gdf.columns:
         return []
 
-    values = (
-        gdf["bundesland"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-    )
-
-    values = sorted([value for value in values.unique().tolist() if value])
-    return values
+    values = [value for value in gdf["bundesland"].unique().tolist() if value]
+    return sorted(values)
 
 
 def filter_gdf_by_bundesland(gdf, bundesland=None):
@@ -81,6 +73,7 @@ def filter_gdf_by_bundesland(gdf, bundesland=None):
     if "bundesland" not in gdf.columns:
         return gdf.iloc[0:0].copy()
 
+    bundesland = str(bundesland).strip()
     return gdf[gdf["bundesland"] == bundesland].copy()
 
 
@@ -88,33 +81,24 @@ def get_geojson_preview(limit=10, bundesland=None):
     if not geojson_exists():
         return []
 
-    gdf = load_geojson_gdf().copy()
-    gdf = filter_gdf_by_bundesland(gdf, bundesland)
-
+    gdf = filter_gdf_by_bundesland(load_geojson_gdf(), bundesland)
     keep_cols = [col for col in ["postcode", "plz2", "bundesland"] if col in gdf.columns]
-    preview_df = gdf[keep_cols].head(limit).fillna("")
-
-    return preview_df.to_dict(orient="records")
+    return gdf[keep_cols].head(limit).fillna("").to_dict(orient="records")
 
 
 def get_geojson_sample(limit=20, bundesland=None):
     if not geojson_exists():
         return None
 
-    gdf = load_geojson_gdf().copy()
-    gdf = filter_gdf_by_bundesland(gdf, bundesland)
-    gdf = gdf.head(limit).copy()
-
-    return gdf.to_json()
+    gdf = filter_gdf_by_bundesland(load_geojson_gdf(), bundesland)
+    return gdf.head(limit).to_json()
 
 
 def get_postcode_records(limit=None, bundesland=None):
     if not geojson_exists():
         return []
 
-    gdf = load_geojson_gdf().copy()
-    gdf = filter_gdf_by_bundesland(gdf, bundesland)
-
+    gdf = filter_gdf_by_bundesland(load_geojson_gdf(), bundesland)
     keep_cols = [col for col in ["postcode", "plz2", "bundesland"] if col in gdf.columns]
     records_df = gdf[keep_cols].fillna("")
 
@@ -128,8 +112,5 @@ def get_geojson_features(limit=200, bundesland=None):
     if not geojson_exists():
         return None
 
-    gdf = load_geojson_gdf().copy()
-    gdf = filter_gdf_by_bundesland(gdf, bundesland)
-    gdf = gdf.head(limit).copy()
-
-    return gdf.to_json()
+    gdf = filter_gdf_by_bundesland(load_geojson_gdf(), bundesland)
+    return gdf.head(limit).to_json()
