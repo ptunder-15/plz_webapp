@@ -13,7 +13,7 @@ import useTabs from "./useTabs";
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [geoFeatureLimit, setGeoFeatureLimit] = useState(1000);
+  const [geoFeatureLimit, setGeoFeatureLimit] = useState(50000);
   const [selectedBundesland, setSelectedBundesland] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [selectedTabId, setSelectedTabId] = useState(1);
