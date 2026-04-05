@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.venv/
+venv/
+
+# Backend env files
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Frontend env files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# IDE / editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Docker local data
+postgres_data/

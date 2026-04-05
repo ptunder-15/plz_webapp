@@ -1,0 +1,1307 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  assignPostcodesToGroup,
+  createGroup,
+  deleteAssignmentsByPostcodes,
+  deleteGroup,
+  getAssignmentsExportUrl,
+  importAssignmentsCsv,
+  updateGroup,
+} from "./api";
+
+function SelectionPanel({
+  selectedItems = [],
+  removePlz,
+  clearSelection,
+  addPlz,
+  postcodeRecords = [],
+  geoSampleInfo = "",
+  geoFeatureLimit,
+  setGeoFeatureLimit,
+  bundeslaender = [],
+  selectedBundesland = "",
+  setSelectedBundesland,
+  activeFilterLabel = "Alle Bundesländer",
+  groups = [],
+  assignments = [],
+  selectedGroupId = null,
+  setSelectedGroupId,
+  reloadAssignments,
+  reloadGroups,
+  selectedTabId = null,
+  activeTabName = "",
+}) {
+  const [searchValue, setSearchValue] = useState("");
+  const [addPlzValue, setAddPlzValue] = useState("");
+  const [addPlzMessage, setAddPlzMessage] = useState("");
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [assignmentSearchValue, setAssignmentSearchValue] = useState("");
+  const [assignmentGroupFilter, setAssignmentGroupFilter] = useState("");
+  const [importFile, setImportFile] = useState(null);
+  const [importMessage, setImportMessage] = useState("");
+
+  const [groupFormName, setGroupFormName] = useState("");
+  const [groupFormColor, setGroupFormColor] = useState("#2563eb");
+  const [groupFormValue, setGroupFormValue] = useState("");
+  const [groupFormMessage, setGroupFormMessage] = useState("");
+  const [editingGroupId, setEditingGroupId] = useState(null);
+  const [showGroupEditor, setShowGroupEditor] = useState(false);
+
+  useEffect(() => {
+    setEditingGroupId(null);
+    setGroupFormName("");
+    setGroupFormColor("#2563eb");
+    setGroupFormValue("");
+    setGroupFormMessage("");
+    setAssignmentMessage("");
+    setImportMessage("");
+    setShowGroupEditor(false);
+  }, [selectedTabId]);
+
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort((a, b) =>
+      String(a?.name || "").localeCompare(String(b?.name || ""), "de", {
+        sensitivity: "base",
+      })
+    );
+  }, [groups]);
+
+  const groupById = useMemo(() => {
+    const map = {};
+    for (const group of groups) {
+      map[group.id] = group;
+    }
+    return map;
+  }, [groups]);
+
+  const postcodeRecordByPostcode = useMemo(() => {
+    const map = {};
+    for (const record of postcodeRecords) {
+      const postcode = String(record?.postcode || "").trim();
+      if (!postcode) continue;
+      map[postcode] = record;
+    }
+    return map;
+  }, [postcodeRecords]);
+
+  const assignmentByPostcode = useMemo(() => {
+    const map = {};
+    for (const assignment of assignments) {
+      const postcode = String(assignment?.postcode || "").trim();
+      if (!postcode) continue;
+      map[postcode] = assignment;
+    }
+    return map;
+  }, [assignments]);
+
+  const assignmentListItems = useMemo(() => {
+    return assignments
+      .map((assignment) => {
+        const postcode = String(assignment?.postcode || "").trim();
+        const record = postcodeRecordByPostcode[postcode];
+        const assignedGroup = groupById[assignment.group_id] || null;
+
+        return {
+          postcode,
+          groupId: assignment.group_id,
+          groupName: assignedGroup?.name || `Gruppe ${assignment.group_id}`,
+          groupColor: assignedGroup?.color || "#9ca3af",
+          groupValue: assignedGroup?.value ?? null,
+          name:
+            record?.name ||
+            record?.bundesland ||
+            record?.plz2 ||
+            "Kein Zusatzinfo im aktuellen Filter",
+        };
+      })
+      .sort((a, b) => {
+        const groupCompare = a.groupName.localeCompare(b.groupName, "de", {
+          sensitivity: "base",
+        });
+
+        if (groupCompare !== 0) return groupCompare;
+
+        return a.postcode.localeCompare(b.postcode, "de", {
+          sensitivity: "base",
+        });
+      });
+  }, [assignments, postcodeRecordByPostcode, groupById]);
+
+  const filteredItems = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+
+    if (!query) return selectedItems;
+
+    return selectedItems.filter((item) => {
+      const plz = String(item?.plz || "").toLowerCase();
+      const name = String(item?.name || "").toLowerCase();
+      return plz.includes(query) || name.includes(query);
+    });
+  }, [selectedItems, searchValue]);
+
+  const filteredAssignmentListItems = useMemo(() => {
+    const query = assignmentSearchValue.trim().toLowerCase();
+
+    return assignmentListItems.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.postcode.toLowerCase().includes(query) ||
+        item.groupName.toLowerCase().includes(query) ||
+        String(item.name || "").toLowerCase().includes(query);
+
+      const matchesGroup =
+        !assignmentGroupFilter ||
+        String(item.groupId) === String(assignmentGroupFilter);
+
+      return matchesSearch && matchesGroup;
+    });
+  }, [assignmentListItems, assignmentSearchValue, assignmentGroupFilter]);
+
+  const selectedGroup = selectedGroupId ? groupById[selectedGroupId] || null : null;
+
+  const selectedAssignedPostcodes = useMemo(() => {
+    return selectedItems
+      .map((item) => String(item?.plz || "").trim())
+      .filter((postcode) => Boolean(assignmentByPostcode[postcode]));
+  }, [selectedItems, assignmentByPostcode]);
+
+  const resetGroupForm = () => {
+    setEditingGroupId(null);
+    setGroupFormName("");
+    setGroupFormColor("#2563eb");
+    setGroupFormValue("");
+    setShowGroupEditor(false);
+  };
+
+  const handleStartEditGroup = (group) => {
+    setEditingGroupId(group.id);
+    setGroupFormName(group.name);
+    setGroupFormColor(group.color);
+    setGroupFormValue(
+      group.value === null || group.value === undefined ? "" : String(group.value)
+    );
+    setGroupFormMessage("");
+    setShowGroupEditor(true);
+  };
+
+  const handleStartCreateGroup = () => {
+    setEditingGroupId(null);
+    setGroupFormName("");
+    setGroupFormColor("#2563eb");
+    setGroupFormValue("");
+    setGroupFormMessage("");
+    setShowGroupEditor(true);
+  };
+
+  const handleSaveGroup = async () => {
+    if (!selectedTabId) {
+      setGroupFormMessage("Bitte zuerst einen Produktbereich auswählen.");
+      return;
+    }
+
+    const normalizedName = groupFormName.trim();
+    const normalizedValue = groupFormValue.trim().replace(",", ".");
+
+    if (!normalizedName) {
+      setGroupFormMessage("Bitte einen Gruppennamen eingeben.");
+      return;
+    }
+
+    if (!/^#[0-9a-fA-F]{6}$/.test(groupFormColor)) {
+      setGroupFormMessage("Bitte eine gültige Farbe wählen.");
+      return;
+    }
+
+    let parsedValue = null;
+
+    if (normalizedValue !== "") {
+      parsedValue = Number(normalizedValue);
+
+      if (Number.isNaN(parsedValue)) {
+        setGroupFormMessage("Bitte einen gültigen numerischen Wert eingeben.");
+        return;
+      }
+    }
+
+    try {
+      let result;
+
+      if (editingGroupId) {
+        result = await updateGroup(
+          editingGroupId,
+          normalizedName,
+          groupFormColor,
+          parsedValue
+        );
+      } else {
+        result = await createGroup(
+          selectedTabId,
+          normalizedName,
+          groupFormColor,
+          parsedValue
+        );
+      }
+
+      await reloadGroups?.();
+      setGroupFormMessage(result.message || "Gruppe gespeichert.");
+      setShowGroupEditor(false);
+      setEditingGroupId(null);
+      setGroupFormName("");
+      setGroupFormColor("#2563eb");
+      setGroupFormValue("");
+    } catch (error) {
+      setGroupFormMessage(error.message || "Fehler beim Speichern der Gruppe.");
+    }
+  };
+
+  const handleDeleteGroup = async (groupId, groupName) => {
+    const confirmed = window.confirm(
+      `Möchtest du die Gruppe "${groupName}" wirklich löschen?\n\nAlle Zuweisungen dieser Gruppe gehen dabei verloren.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const result = await deleteGroup(groupId);
+      await reloadGroups?.();
+      await reloadAssignments?.();
+
+      if (selectedGroupId === groupId) {
+        setSelectedGroupId?.(null);
+      }
+
+      if (editingGroupId === groupId) {
+        resetGroupForm();
+      }
+
+      setGroupFormMessage(result.message || "Gruppe gelöscht.");
+    } catch (error) {
+      setGroupFormMessage(error.message || "Fehler beim Löschen der Gruppe.");
+    }
+  };
+
+  const handleAddPlz = () => {
+    const normalized = addPlzValue.trim();
+
+    if (!/^\d{5}$/.test(normalized)) {
+      setAddPlzMessage("Bitte eine gültige fünfstellige PLZ eingeben.");
+      return;
+    }
+
+    const exists = postcodeRecords.some((item) => item?.postcode === normalized);
+
+    if (!exists) {
+      setAddPlzMessage("Diese PLZ wurde in den geladenen Datensätzen nicht gefunden.");
+      return;
+    }
+
+    addPlz?.(normalized);
+    setAddPlzMessage(`PLZ ${normalized} wurde zur Auswahl hinzugefügt.`);
+    setAddPlzValue("");
+  };
+
+  const handleAssignToGroup = async () => {
+    if (!selectedTabId) {
+      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
+      return;
+    }
+
+    if (!selectedGroupId) {
+      setAssignmentMessage("Bitte zuerst eine Gruppe auswählen.");
+      return;
+    }
+
+    if (selectedItems.length === 0) {
+      setAssignmentMessage("Bitte zuerst mindestens eine PLZ auswählen.");
+      return;
+    }
+
+    try {
+      const result = await assignPostcodesToGroup(
+        selectedTabId,
+        selectedGroupId,
+        selectedItems.map((item) => item.plz)
+      );
+
+      await reloadAssignments?.();
+      clearSelection?.();
+      setAssignmentMessage(result.message || "Zuweisung gespeichert.");
+    } catch (error) {
+      setAssignmentMessage(error.message || "Fehler beim Speichern der Zuweisung.");
+    }
+  };
+
+  const handleRemoveSelectedAssignments = async () => {
+    if (!selectedTabId) {
+      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
+      return;
+    }
+
+    if (selectedAssignedPostcodes.length === 0) {
+      setAssignmentMessage("In der aktuellen Auswahl gibt es keine bestehenden Gruppenzuweisungen.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Möchtest du ${selectedAssignedPostcodes.length} ausgewählte PLZ aus ihrer bisherigen Gruppe entfernen?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const result = await deleteAssignmentsByPostcodes(
+        selectedTabId,
+        selectedAssignedPostcodes
+      );
+
+      await reloadAssignments?.();
+
+      selectedAssignedPostcodes.forEach((postcode) => {
+        removePlz?.(postcode);
+      });
+
+      setAssignmentMessage(result.message || "Zuweisungen entfernt.");
+    } catch (error) {
+      setAssignmentMessage(error.message || "Fehler beim Entfernen der Zuweisungen.");
+    }
+  };
+
+  const handleRemoveAssignment = async (postcode) => {
+    if (!selectedTabId) {
+      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
+      return;
+    }
+
+    const assignment = assignmentByPostcode[postcode];
+    const assignedGroup = assignment ? groupById[assignment.group_id] : null;
+    const groupLabel = assignedGroup?.name ? ` aus ${assignedGroup.name}` : "";
+
+    const confirmed = window.confirm(
+      `Möchtest du die Zuweisung der PLZ ${postcode}${groupLabel} wirklich entfernen?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const result = await deleteAssignmentsByPostcodes(selectedTabId, [postcode]);
+      await reloadAssignments?.();
+      removePlz?.(postcode);
+      setAssignmentMessage(result.message || "Zuweisung entfernt.");
+    } catch (error) {
+      setAssignmentMessage(error.message || "Fehler beim Entfernen der Zuweisung.");
+    }
+  };
+
+  const handleExportAssignments = () => {
+    window.open(getAssignmentsExportUrl(selectedTabId), "_blank");
+  };
+
+  const handleImportAssignments = async () => {
+    if (!selectedTabId) {
+      setImportMessage("Bitte zuerst einen Produktbereich auswählen.");
+      return;
+    }
+
+    if (!importFile) {
+      setImportMessage("Bitte zuerst eine CSV-Datei auswählen.");
+      return;
+    }
+
+    try {
+      const result = await importAssignmentsCsv(importFile, selectedTabId);
+      await reloadAssignments?.();
+      setImportMessage(result.message || "CSV-Import erfolgreich.");
+      setImportFile(null);
+    } catch (error) {
+      setImportMessage(error.message || "CSV-Import fehlgeschlagen.");
+    }
+  };
+
+  const renderGroupValueText = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return "Kein Wert";
+    }
+    return String(value);
+  };
+
+  const shellCard = {
+    background: "rgba(255,255,255,0.82)",
+    border: "1px solid rgba(15,23,42,0.07)",
+    borderRadius: "24px",
+    boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
+    backdropFilter: "blur(16px)",
+    WebkitBackdropFilter: "blur(16px)",
+  };
+
+  const softCard = {
+    background: "#ffffff",
+    border: "1px solid rgba(15,23,42,0.08)",
+    borderRadius: "20px",
+    boxShadow: "0 4px 14px rgba(15,23,42,0.04)",
+  };
+
+  const subtleButton = {
+    border: "none",
+    background: "#eef2f7",
+    color: "#111827",
+    borderRadius: "999px",
+    padding: "8px 12px",
+    cursor: "pointer",
+    fontWeight: 600,
+    fontSize: "12px",
+  };
+
+  const groupPickerCardStyle = (group, isActive) => ({
+    border: isActive
+      ? "2px solid rgba(15,23,42,0.9)"
+      : "1px solid rgba(15,23,42,0.08)",
+    background: isActive
+      ? `linear-gradient(180deg, ${group.color}22 0%, ${group.color}10 100%)`
+      : "#ffffff",
+    borderRadius: "18px",
+    padding: "12px",
+    cursor: "pointer",
+    boxShadow: isActive
+      ? `0 10px 24px ${group.color}22`
+      : "0 4px 12px rgba(15,23,42,0.04)",
+    transition: "all 0.16s ease",
+  });
+
+  return (
+    <aside
+      style={{
+        ...shellCard,
+        padding: "20px",
+        minHeight: "500px",
+      }}
+    >
+      <div style={{ marginBottom: "18px" }}>
+        <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
+          Produktbereich
+        </div>
+        <div style={{ fontSize: "28px", fontWeight: 700, letterSpacing: "-0.03em" }}>
+          {activeTabName || "Kein Bereich gewählt"}
+        </div>
+        <div style={{ marginTop: "8px", fontSize: "14px", color: "#6b7280" }}>
+          {activeFilterLabel}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: "10px", marginBottom: "18px" }}>
+        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
+          <div style={{ fontSize: "24px", fontWeight: 700 }}>{selectedItems.length}</div>
+          <div style={{ fontSize: "12px", color: "#6b7280" }}>Ausgewählt</div>
+        </div>
+        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
+          <div style={{ fontSize: "24px", fontWeight: 700 }}>{sortedGroups.length}</div>
+          <div style={{ fontSize: "12px", color: "#6b7280" }}>Gruppen</div>
+        </div>
+        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
+          <div style={{ fontSize: "24px", fontWeight: 700 }}>{assignments.length}</div>
+          <div style={{ fontSize: "12px", color: "#6b7280" }}>Zuweisungen</div>
+        </div>
+      </div>
+
+      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
+        <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
+          Aktuelle Aktion
+        </div>
+
+        <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "10px", color: "#111827" }}>
+          Gruppe für die Auswahl
+        </div>
+
+        {sortedGroups.length > 0 ? (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "10px",
+              marginBottom: "12px",
+            }}
+          >
+            {sortedGroups.map((group) => {
+              const isActive = selectedGroupId === group.id;
+
+              return (
+                <button
+                  key={group.id}
+                  onClick={() => setSelectedGroupId?.(group.id)}
+                  style={groupPickerCardStyle(group, isActive)}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "10px",
+                      borderRadius: "999px",
+                      background: group.color,
+                      marginBottom: "10px",
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      textAlign: "left",
+                      fontWeight: 700,
+                      fontSize: "14px",
+                      color: "#111827",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {group.name}
+                  </div>
+
+                  <div
+                    style={{
+                      textAlign: "left",
+                      fontSize: "12px",
+                      color: "#6b7280",
+                    }}
+                  >
+                    {renderGroupValueText(group.value)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...softCard,
+              padding: "14px",
+              fontSize: "14px",
+              color: "#6b7280",
+              marginBottom: "12px",
+            }}
+          >
+            Noch keine Gruppen vorhanden.
+          </div>
+        )}
+
+        <div
+          style={{
+            ...softCard,
+            padding: "12px 14px",
+            marginBottom: "12px",
+            background: "#f8fafc",
+          }}
+        >
+          {selectedGroup ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+              <div
+                style={{
+                  width: "16px",
+                  height: "16px",
+                  borderRadius: "6px",
+                  background: selectedGroup.color,
+                  border: "1px solid rgba(15,23,42,0.12)",
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: "14px" }}>
+                  Aktiv: {selectedGroup.name}
+                </div>
+                <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                  Wert: {renderGroupValueText(selectedGroup.value)}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: "13px", color: "#6b7280" }}>
+              Wähle eine Gruppe direkt über die Farbkarten aus.
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
+          <button
+            onClick={handleAssignToGroup}
+            style={{
+              width: "100%",
+              border: "none",
+              background:
+                "linear-gradient(180deg, rgba(17,24,39,1) 0%, rgba(31,41,55,1) 100%)",
+              color: "white",
+              borderRadius: "18px",
+              padding: "14px 16px",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "15px",
+              boxShadow: selectedGroup
+                ? `0 10px 22px ${selectedGroup.color}33`
+                : "0 10px 20px rgba(17,24,39,0.18)",
+            }}
+          >
+            Auswahl dieser Gruppe zuweisen
+          </button>
+
+          <button
+            onClick={handleRemoveSelectedAssignments}
+            style={{
+              width: "100%",
+              border: "none",
+              background: "#eef2f7",
+              color: "#111827",
+              borderRadius: "18px",
+              padding: "12px 16px",
+              cursor: "pointer",
+              fontWeight: 700,
+              fontSize: "14px",
+            }}
+          >
+            Auswahl aus bestehender Gruppe entfernen
+          </button>
+        </div>
+
+        {assignmentMessage && (
+          <div style={{ marginTop: "10px", fontSize: "13px", color: "#4b5563" }}>
+            {assignmentMessage}
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "12px",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "15px" }}>Gruppen</div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+              Farben, Namen und Werte verwalten
+            </div>
+          </div>
+
+          <button onClick={handleStartCreateGroup} style={subtleButton}>
+            Neue Gruppe
+          </button>
+        </div>
+
+        {showGroupEditor && (
+          <div
+            style={{
+              ...softCard,
+              padding: "12px",
+              marginBottom: "12px",
+              background: "#f8fafc",
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Gruppenname"
+              value={groupFormName}
+              onChange={(e) => setGroupFormName(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: "14px",
+                border: "1px solid rgba(15,23,42,0.09)",
+                background: "white",
+                fontSize: "14px",
+                marginBottom: "10px",
+                boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+              <input
+                type="color"
+                value={groupFormColor}
+                onChange={(e) => setGroupFormColor(e.target.value)}
+                style={{
+                  width: "54px",
+                  height: "44px",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(15,23,42,0.09)",
+                  background: "white",
+                  padding: "4px",
+                  boxSizing: "border-box",
+                }}
+              />
+
+              <input
+                type="text"
+                placeholder="Optionaler Wert"
+                value={groupFormValue}
+                onChange={(e) => setGroupFormValue(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "12px 14px",
+                  borderRadius: "14px",
+                  border: "1px solid rgba(15,23,42,0.09)",
+                  background: "white",
+                  fontSize: "14px",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", marginBottom: groupFormMessage ? "10px" : "0" }}>
+              <button
+                onClick={handleSaveGroup}
+                style={{
+                  flex: 1,
+                  border: "none",
+                  background: "#111827",
+                  color: "white",
+                  borderRadius: "14px",
+                  padding: "11px 12px",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                {editingGroupId ? "Änderungen speichern" : "Gruppe anlegen"}
+              </button>
+
+              <button
+                onClick={resetGroupForm}
+                style={{
+                  border: "none",
+                  background: "#e5e7eb",
+                  color: "#111827",
+                  borderRadius: "14px",
+                  padding: "11px 12px",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                }}
+              >
+                Schließen
+              </button>
+            </div>
+
+            {groupFormMessage && (
+              <div style={{ fontSize: "13px", color: "#4b5563" }}>
+                {groupFormMessage}
+              </div>
+            )}
+          </div>
+        )}
+
+        {sortedGroups.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "260px", overflowY: "auto" }}>
+            {sortedGroups.map((group) => {
+              const isActive = selectedGroupId === group.id;
+
+              return (
+                <div
+                  key={group.id}
+                  style={{
+                    padding: "12px",
+                    borderRadius: "16px",
+                    background: isActive ? "#eef4ff" : "#f8fafc",
+                    border: isActive
+                      ? "1px solid rgba(59,130,246,0.28)"
+                      : "1px solid rgba(15,23,42,0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <button
+                      onClick={() => setSelectedGroupId?.(group.id)}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        padding: 0,
+                        margin: 0,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        flex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "14px",
+                          height: "14px",
+                          borderRadius: "5px",
+                          background: group.color,
+                          border: "1px solid rgba(15,23,42,0.12)",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+                          {group.name}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                          {renderGroupValueText(group.value)}
+                        </div>
+                      </div>
+                    </button>
+
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={() => handleStartEditGroup(group)}
+                        style={subtleButton}
+                      >
+                        Bearbeiten
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGroup(group.id, group.name)}
+                        style={{
+                          ...subtleButton,
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                        }}
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...softCard,
+              padding: "14px",
+              fontSize: "14px",
+              color: "#6b7280",
+            }}
+          >
+            Noch keine Gruppen vorhanden.
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
+        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>
+          Aktuelle Auswahl
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
+          <input
+            type="text"
+            placeholder="PLZ direkt eingeben"
+            value={addPlzValue}
+            onChange={(e) => setAddPlzValue(e.target.value)}
+            style={{
+              flex: 1,
+              padding: "12px 14px",
+              borderRadius: "14px",
+              border: "1px solid rgba(15,23,42,0.09)",
+              background: "#f8fafc",
+              fontSize: "14px",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+          <button
+            onClick={handleAddPlz}
+            style={{
+              border: "none",
+              background: "#111827",
+              color: "white",
+              borderRadius: "14px",
+              padding: "12px 14px",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            Hinzufügen
+          </button>
+        </div>
+
+        {addPlzMessage && (
+          <div style={{ marginBottom: "10px", fontSize: "13px", color: "#4b5563" }}>
+            {addPlzMessage}
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="Auswahl durchsuchen"
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          style={{
+            width: "100%",
+            marginBottom: "10px",
+            padding: "12px 14px",
+            borderRadius: "14px",
+            border: "1px solid rgba(15,23,42,0.09)",
+            background: "#f8fafc",
+            outline: "none",
+            boxSizing: "border-box",
+            fontSize: "14px",
+          }}
+        />
+
+        {selectedItems.length > 0 && (
+          <button
+            onClick={clearSelection}
+            style={{
+              width: "100%",
+              marginBottom: "10px",
+              border: "none",
+              background: "#fee2e2",
+              color: "#991b1b",
+              borderRadius: "14px",
+              padding: "11px 12px",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            Auswahl leeren
+          </button>
+        )}
+
+        {filteredItems.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "260px", overflowY: "auto" }}>
+            {filteredItems.map((item) => {
+              const postcode = String(item?.plz || "").trim();
+              const assignment = assignmentByPostcode[postcode];
+              const assignedGroup = assignment
+                ? groupById[assignment.group_id]
+                : null;
+
+              return (
+                <div
+                  key={item.plz}
+                  style={{
+                    padding: "12px",
+                    borderRadius: "16px",
+                    background: "#f8fafc",
+                    border: "1px solid rgba(15,23,42,0.06)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{item.plz}</div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#6b7280",
+                        marginTop: "2px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.name}
+                    </div>
+
+                    {assignedGroup && (
+                      <div
+                        style={{
+                          marginTop: "6px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "4px 8px",
+                          borderRadius: "999px",
+                          background: "#ffffff",
+                          border: "1px solid rgba(15,23,42,0.08)",
+                          fontSize: "12px",
+                          color: "#374151",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: "10px",
+                            height: "10px",
+                            borderRadius: "999px",
+                            background: assignedGroup.color,
+                            display: "inline-block",
+                            border: "1px solid rgba(15,23,42,0.12)",
+                          }}
+                        />
+                        {assignedGroup.name}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => removePlz?.(item.plz)}
+                    style={{
+                      border: "none",
+                      background: "#e5e7eb",
+                      color: "#111827",
+                      borderRadius: "12px",
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Entfernen
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...softCard,
+              padding: "14px",
+              fontSize: "14px",
+              color: "#6b7280",
+            }}
+          >
+            {selectedItems.length === 0
+              ? "Noch keine PLZ ausgewählt."
+              : "Keine Treffer in der aktuellen Auswahl."}
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "12px",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "15px" }}>Zuweisungen</div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>
+              Bestehende Gebietszuweisungen im aktiven Bereich
+            </div>
+          </div>
+
+          <button onClick={handleExportAssignments} style={subtleButton}>
+            Export
+          </button>
+        </div>
+
+        <div style={{ marginBottom: "12px" }}>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+            style={{ marginBottom: "10px", width: "100%" }}
+          />
+
+          <button
+            onClick={handleImportAssignments}
+            style={{
+              width: "100%",
+              border: "none",
+              background: "#111827",
+              color: "white",
+              borderRadius: "14px",
+              padding: "11px 12px",
+              cursor: "pointer",
+              fontWeight: 700,
+              marginBottom: importMessage ? "10px" : "0",
+            }}
+          >
+            Import
+          </button>
+
+          {importMessage && (
+            <div style={{ fontSize: "13px", color: "#4b5563" }}>{importMessage}</div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
+          <input
+            type="text"
+            placeholder="Zuweisungen durchsuchen"
+            value={assignmentSearchValue}
+            onChange={(e) => setAssignmentSearchValue(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              border: "1px solid rgba(15,23,42,0.09)",
+              background: "#f8fafc",
+              outline: "none",
+              boxSizing: "border-box",
+              fontSize: "14px",
+            }}
+          />
+
+          <select
+            value={assignmentGroupFilter}
+            onChange={(e) => setAssignmentGroupFilter(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              border: "1px solid rgba(15,23,42,0.09)",
+              background: "#f8fafc",
+              fontSize: "14px",
+            }}
+          >
+            <option value="">Alle Gruppen</option>
+            {sortedGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {filteredAssignmentListItems.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "340px", overflowY: "auto" }}>
+            {filteredAssignmentListItems.map((item) => (
+              <div
+                key={item.postcode}
+                style={{
+                  padding: "12px",
+                  borderRadius: "16px",
+                  background: "#f8fafc",
+                  border: "1px solid rgba(15,23,42,0.06)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700 }}>{item.postcode}</div>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#6b7280",
+                      marginTop: "2px",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.name}
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "6px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "4px 8px",
+                      borderRadius: "999px",
+                      background: "#ffffff",
+                      border: "1px solid rgba(15,23,42,0.08)",
+                      fontSize: "12px",
+                      color: "#374151",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "999px",
+                        background: item.groupColor,
+                        display: "inline-block",
+                        border: "1px solid rgba(15,23,42,0.12)",
+                      }}
+                    />
+                    {item.groupName}
+                    {item.groupValue !== null && item.groupValue !== undefined
+                      ? ` (${item.groupValue})`
+                      : ""}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleRemoveAssignment(item.postcode)}
+                  style={{
+                    border: "none",
+                    background: "#fee2e2",
+                    color: "#991b1b",
+                    borderRadius: "12px",
+                    padding: "8px 10px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    flexShrink: 0,
+                  }}
+                >
+                  Entfernen
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...softCard,
+              padding: "14px",
+              fontSize: "14px",
+              color: "#6b7280",
+            }}
+          >
+            Noch keine Zuweisungen im aktuellen Produktbereich vorhanden.
+          </div>
+        )}
+      </div>
+
+      <div style={{ ...softCard, padding: "16px" }}>
+        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>
+          Karte
+        </div>
+
+        <div style={{ marginBottom: "10px" }}>
+          <select
+            value={selectedBundesland}
+            onChange={(e) => setSelectedBundesland?.(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              borderRadius: "14px",
+              border: "1px solid rgba(15,23,42,0.09)",
+              background: "#f8fafc",
+              fontSize: "14px",
+            }}
+          >
+            <option value="">Alle Bundesländer</option>
+            {bundeslaender.map((bundesland) => (
+              <option key={bundesland} value={bundesland}>
+                {bundesland}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {[200, 1000, 2000].map((limit) => (
+            <button
+              key={limit}
+              onClick={() => setGeoFeatureLimit?.(limit)}
+              style={{
+                border: "none",
+                background: geoFeatureLimit === limit ? "#111827" : "#eef2f7",
+                color: geoFeatureLimit === limit ? "white" : "#111827",
+                borderRadius: "999px",
+                padding: "9px 12px",
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: "12px",
+              }}
+            >
+              {limit}
+            </button>
+          ))}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+export default SelectionPanel;

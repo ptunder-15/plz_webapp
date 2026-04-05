@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+pandas
+geopandas
+psycopg2-binary
+sqlalchemy
+pip install python-multipart
