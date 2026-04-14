@@ -50,13 +50,22 @@ def sync_serial_sequence(connection, table_name: str, id_column: str = "id"):
 
 def initialize_database():
     with engine.begin() as connection:
+        # 1. TABS: Create table without UNIQUE constraint on name, add user_email
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS tabs (
                 id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL UNIQUE,
-                sort_order INTEGER NOT NULL DEFAULT 0
+                name VARCHAR(100) NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                user_email VARCHAR(255) NOT NULL DEFAULT 'lokal@entwickler.de'
             )
         """))
+
+        # 2. TABS MIGRATION: Add user_email if missing and drop unique constraint
+        tabs_columns = get_table_columns(connection, "tabs")
+        if "user_email" not in tabs_columns:
+            connection.execute(text("ALTER TABLE tabs ADD COLUMN user_email VARCHAR(255) NOT NULL DEFAULT 'lokal@entwickler.de'"))
+            # We drop the unique constraint so multiple users can have a tab with the same name
+            connection.execute(text("ALTER TABLE tabs DROP CONSTRAINT IF EXISTS tabs_name_key"))
 
         existing_tabs_count = connection.execute(
             text("SELECT COUNT(*) FROM tabs")
@@ -65,8 +74,8 @@ def initialize_database():
         if existing_tabs_count == 0:
             connection.execute(
                 text("""
-                    INSERT INTO tabs (name, sort_order)
-                    VALUES ('Heizöl', 1)
+                    INSERT INTO tabs (name, sort_order, user_email)
+                    VALUES ('Heizöl', 1, 'lokal@entwickler.de')
                 """)
             )
 
@@ -231,34 +240,54 @@ def initialize_database():
         sync_serial_sequence(connection, "groups")
 
 
-def fetch_tabs_from_db():
-    with engine.connect() as connection:
-        result = connection.execute(
-            text("""
-                SELECT id, name, sort_order
-                FROM tabs
-                ORDER BY sort_order, id
-            """)
-        )
+def fetch_tabs_from_db(user_email: Optional[str] = None):
+    # WICHTIG: engine.begin() statt connect(), damit wir hier auch schreiben dürfen
+    with engine.begin() as connection:
+        query_str = "SELECT id, name, sort_order, user_email FROM tabs"
+        params = {}
+
+        if user_email:
+            query_str += " WHERE user_email = :user_email"
+            params["user_email"] = user_email
+            
+        query_str += " ORDER BY sort_order, id"
+        
+        result = connection.execute(text(query_str), params)
         rows = result.mappings().all()
+
+        # NEU: Wenn der Nutzer noch gar keinen Tab hat, erstellen wir "Heizöl" automatisch
+        if len(rows) == 0 and user_email:
+            connection.execute(
+                text("""
+                    INSERT INTO tabs (name, sort_order, user_email)
+                    VALUES ('Heizöl', 1, :user_email)
+                """),
+                {"user_email": user_email}
+            )
+            # Lade die Tabs direkt nochmal, damit der neue Tab ans Frontend geschickt wird
+            result = connection.execute(text(query_str), params)
+            rows = result.mappings().all()
+
         return [dict(row) for row in rows]
 
 
-def create_tab_in_db(name: str):
+def create_tab_in_db(name: str, user_email: str = "lokal@entwickler.de"):
     with engine.begin() as connection:
         next_sort_order = connection.execute(
-            text("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tabs")
+            text("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tabs WHERE user_email = :user_email"),
+            {"user_email": user_email}
         ).scalar()
 
         result = connection.execute(
             text("""
-                INSERT INTO tabs (name, sort_order)
-                VALUES (:name, :sort_order)
-                RETURNING id, name, sort_order
+                INSERT INTO tabs (name, sort_order, user_email)
+                VALUES (:name, :sort_order, :user_email)
+                RETURNING id, name, sort_order, user_email
             """),
             {
                 "name": name,
                 "sort_order": next_sort_order,
+                "user_email": user_email
             },
         )
 
@@ -266,61 +295,60 @@ def create_tab_in_db(name: str):
         return dict(row)
 
 
-def update_tab_in_db(tab_id: int, name: str):
+def update_tab_in_db(tab_id: int, name: str, user_email: Optional[str] = None):
     with engine.begin() as connection:
-        result = connection.execute(
-            text("""
-                UPDATE tabs
-                SET name = :name
-                WHERE id = :tab_id
-                RETURNING id, name, sort_order
-            """),
-            {
-                "tab_id": tab_id,
-                "name": name,
-            },
-        )
-
+        query_str = "UPDATE tabs SET name = :name WHERE id = :tab_id"
+        params = {"tab_id": tab_id, "name": name}
+        
+        if user_email:
+            query_str += " AND user_email = :user_email"
+            params["user_email"] = user_email
+            
+        query_str += " RETURNING id, name, sort_order, user_email"
+        
+        result = connection.execute(text(query_str), params)
         row = result.mappings().first()
+
         if not row:
             return None
 
         return dict(row)
 
 
-def delete_tab_in_db(tab_id: int):
+def delete_tab_in_db(tab_id: int, user_email: Optional[str] = None):
     with engine.begin() as connection:
-        result = connection.execute(
-            text("""
-                DELETE FROM tabs
-                WHERE id = :tab_id
-            """),
-            {"tab_id": tab_id},
-        )
+        query_str = "DELETE FROM tabs WHERE id = :tab_id"
+        params = {"tab_id": tab_id}
+        
+        if user_email:
+            query_str += " AND user_email = :user_email"
+            params["user_email"] = user_email
+
+        result = connection.execute(text(query_str), params)
         return result.rowcount or 0
 
 
-def fetch_groups_from_db(tab_id: Optional[int] = None):
+def fetch_groups_from_db(tab_id: Optional[int] = None, user_email: Optional[str] = None):
     with engine.connect() as connection:
-        if tab_id is None:
-            result = connection.execute(
-                text("""
-                    SELECT id, tab_id, name, color, value
-                    FROM groups
-                    ORDER BY id
-                """)
-            )
-        else:
-            result = connection.execute(
-                text("""
-                    SELECT id, tab_id, name, color, value
-                    FROM groups
-                    WHERE tab_id = :tab_id
-                    ORDER BY id
-                """),
-                {"tab_id": tab_id},
-            )
+        query_str = "SELECT g.id, g.tab_id, g.name, g.color, g.value FROM groups g"
+        params = {}
+        filters = []
 
+        if user_email:
+            query_str += " JOIN tabs t ON t.id = g.tab_id"
+            filters.append("t.user_email = :user_email")
+            params["user_email"] = user_email
+            
+        if tab_id is not None:
+            filters.append("g.tab_id = :tab_id")
+            params["tab_id"] = tab_id
+            
+        if filters:
+            query_str += " WHERE " + " AND ".join(filters)
+            
+        query_str += " ORDER BY g.id"
+
+        result = connection.execute(text(query_str), params)
         rows = result.mappings().all()
 
         output = []
@@ -350,9 +378,7 @@ def create_group_in_db(tab_id: int, name: str, color: str, value: Optional[float
                 "value": value,
             },
         )
-
         row = result.mappings().first()
-
         return {
             "id": row["id"],
             "tab_id": row["tab_id"],
@@ -380,12 +406,9 @@ def update_group_in_db(group_id: int, name: str, color: str, value: Optional[flo
                 "value": value,
             },
         )
-
         row = result.mappings().first()
-
         if not row:
             return None
-
         return {
             "id": row["id"],
             "tab_id": row["tab_id"],
@@ -407,74 +430,63 @@ def delete_group_in_db(group_id: int):
         return result.rowcount or 0
 
 
-def fetch_assignments_from_db(tab_id: Optional[int] = None):
+def fetch_assignments_from_db(tab_id: Optional[int] = None, user_email: Optional[str] = None):
     with engine.connect() as connection:
-        if tab_id is None:
-            result = connection.execute(
-                text("""
-                    SELECT tab_id, postcode, group_id
-                    FROM postcode_assignments
-                    ORDER BY tab_id, postcode
-                """)
-            )
-        else:
-            result = connection.execute(
-                text("""
-                    SELECT tab_id, postcode, group_id
-                    FROM postcode_assignments
-                    WHERE tab_id = :tab_id
-                    ORDER BY postcode
-                """),
-                {"tab_id": tab_id},
-            )
+        query_str = "SELECT a.tab_id, a.postcode, a.group_id FROM postcode_assignments a"
+        params = {}
+        filters = []
 
+        if user_email:
+            query_str += " JOIN tabs t ON t.id = a.tab_id"
+            filters.append("t.user_email = :user_email")
+            params["user_email"] = user_email
+            
+        if tab_id is not None:
+            filters.append("a.tab_id = :tab_id")
+            params["tab_id"] = tab_id
+            
+        if filters:
+            query_str += " WHERE " + " AND ".join(filters)
+            
+        query_str += " ORDER BY a.tab_id, a.postcode"
+
+        result = connection.execute(text(query_str), params)
         rows = result.mappings().all()
         return [dict(row) for row in rows]
 
 
-def fetch_assignments_export_rows_from_db(tab_id: Optional[int] = None):
+def fetch_assignments_export_rows_from_db(tab_id: Optional[int] = None, user_email: Optional[str] = None):
     with engine.connect() as connection:
-        if tab_id is None:
-            result = connection.execute(
-                text("""
-                    SELECT
-                        pa.tab_id,
-                        t.name AS tab_name,
-                        pa.postcode,
-                        pa.group_id,
-                        g.name AS group_name,
-                        g.color AS group_color,
-                        g.value AS group_value
-                    FROM postcode_assignments pa
-                    JOIN groups g
-                        ON g.id = pa.group_id
-                    JOIN tabs t
-                        ON t.id = pa.tab_id
-                    ORDER BY pa.tab_id, pa.postcode
-                """)
-            )
-        else:
-            result = connection.execute(
-                text("""
-                    SELECT
-                        pa.tab_id,
-                        t.name AS tab_name,
-                        pa.postcode,
-                        pa.group_id,
-                        g.name AS group_name,
-                        g.color AS group_color,
-                        g.value AS group_value
-                    FROM postcode_assignments pa
-                    JOIN groups g
-                        ON g.id = pa.group_id
-                    JOIN tabs t
-                        ON t.id = pa.tab_id
-                    WHERE pa.tab_id = :tab_id
-                    ORDER BY pa.postcode
-                """),
-                {"tab_id": tab_id},
-            )
+        query_str = """
+            SELECT
+                pa.tab_id,
+                t.name AS tab_name,
+                pa.postcode,
+                pa.group_id,
+                g.name AS group_name,
+                g.color AS group_color,
+                g.value AS group_value
+            FROM postcode_assignments pa
+            JOIN groups g ON g.id = pa.group_id
+            JOIN tabs t ON t.id = pa.tab_id
+        """
+        params = {}
+        filters = []
 
+        if user_email:
+            filters.append("t.user_email = :user_email")
+            params["user_email"] = user_email
+            
+        if tab_id is not None:
+            filters.append("pa.tab_id = :tab_id")
+            params["tab_id"] = tab_id
+            
+        if filters:
+            query_str += " WHERE " + " AND ".join(filters)
+            
+        query_str += " ORDER BY pa.tab_id, pa.postcode"
+
+        result = connection.execute(text(query_str), params)
         rows = result.mappings().all()
 
         output = []

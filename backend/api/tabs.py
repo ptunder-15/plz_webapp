@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+
+# NEU: Wir importieren unseren Türsteher aus der auth.py im gleichen Ordner
+from .auth import get_current_user
 
 from database import (
     create_tab_in_db,
@@ -38,16 +41,18 @@ def validate_tab_name(name: str) -> str:
 
 
 @router.get("/")
-def get_tabs():
-    return fetch_tabs_from_db()
+def get_tabs(user_email: str = Depends(get_current_user)):
+    # Gibt nur die Tabs des aktuell eingeloggten Nutzers zurück
+    return fetch_tabs_from_db(user_email=user_email)
 
 
 @router.post("/")
-def create_tab(payload: TabCreateRequest):
+def create_tab(payload: TabCreateRequest, user_email: str = Depends(get_current_user)):
     normalized_name = validate_tab_name(payload.name)
 
     try:
-        created_tab = create_tab_in_db(normalized_name)
+        # Reicht die E-Mail an die Datenbank weiter
+        created_tab = create_tab_in_db(normalized_name, user_email=user_email)
     except Exception as error:
         error_message = str(error).lower()
 
@@ -62,16 +67,17 @@ def create_tab(payload: TabCreateRequest):
     return {
         "message": "Tab wurde angelegt.",
         "tab": created_tab,
-        "tabs": fetch_tabs_from_db(),
+        "tabs": fetch_tabs_from_db(user_email=user_email),
     }
 
 
 @router.patch("/{tab_id}")
-def update_tab(tab_id: int, payload: TabUpdateRequest):
+def update_tab(tab_id: int, payload: TabUpdateRequest, user_email: str = Depends(get_current_user)):
     normalized_name = validate_tab_name(payload.name)
 
     try:
-        updated_tab = update_tab_in_db(tab_id, normalized_name)
+        # Aktualisiert nur, wenn der Tab auch diesem Nutzer gehört
+        updated_tab = update_tab_in_db(tab_id, normalized_name, user_email=user_email)
     except Exception as error:
         error_message = str(error).lower()
 
@@ -86,19 +92,20 @@ def update_tab(tab_id: int, payload: TabUpdateRequest):
     if not updated_tab:
         raise HTTPException(
             status_code=404,
-            detail="Tab wurde nicht gefunden."
+            detail="Tab wurde nicht gefunden oder gehört dir nicht."
         )
 
     return {
         "message": "Tab wurde aktualisiert.",
         "tab": updated_tab,
-        "tabs": fetch_tabs_from_db(),
+        "tabs": fetch_tabs_from_db(user_email=user_email),
     }
 
 
 @router.delete("/{tab_id}")
-def delete_tab(tab_id: int):
-    existing_tabs = fetch_tabs_from_db()
+def delete_tab(tab_id: int, user_email: str = Depends(get_current_user)):
+    # Holt nur die Tabs DIESES Nutzers, um zu prüfen, ob es sein letzter ist
+    existing_tabs = fetch_tabs_from_db(user_email=user_email)
 
     if len(existing_tabs) <= 1:
         raise HTTPException(
@@ -115,10 +122,11 @@ def delete_tab(tab_id: int):
     if not existing_tab:
         raise HTTPException(
             status_code=404,
-            detail="Tab wurde nicht gefunden."
+            detail="Tab wurde nicht gefunden oder gehört dir nicht."
         )
 
-    removed_count = delete_tab_in_db(tab_id)
+    # Löscht den Tab unter Berücksichtigung der E-Mail
+    removed_count = delete_tab_in_db(tab_id, user_email=user_email)
 
     if removed_count == 0:
         raise HTTPException(
@@ -128,5 +136,5 @@ def delete_tab(tab_id: int):
 
     return {
         "message": "Tab wurde gelöscht.",
-        "tabs": fetch_tabs_from_db(),
+        "tabs": fetch_tabs_from_db(user_email=user_email),
     }

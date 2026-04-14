@@ -1,7 +1,10 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+
+# NEU: Wir importieren unseren Türsteher
+from .auth import get_current_user
 
 from database import (
     create_group_in_db,
@@ -63,12 +66,19 @@ def validate_group_color(color: str) -> str:
 
 
 @router.get("/")
-def get_groups(tab_id: Optional[int] = Query(default=None)):
-    return fetch_groups_from_db(tab_id=tab_id)
+def get_groups(
+    tab_id: Optional[int] = Query(default=None),
+    user_email: str = Depends(get_current_user)
+):
+    # Gibt nur die Gruppen zurück, die zu den Tabs des Nutzers gehören
+    return fetch_groups_from_db(tab_id=tab_id, user_email=user_email)
 
 
 @router.post("/")
-def create_group(payload: GroupCreateRequest):
+def create_group(
+    payload: GroupCreateRequest,
+    user_email: str = Depends(get_current_user)
+):
     normalized_name = validate_group_name(payload.name)
     normalized_color = validate_group_color(payload.color)
 
@@ -82,12 +92,24 @@ def create_group(payload: GroupCreateRequest):
     return {
         "message": "Gruppe wurde angelegt.",
         "group": created_group,
-        "groups": fetch_groups_from_db(tab_id=payload.tab_id),
+        "groups": fetch_groups_from_db(tab_id=payload.tab_id, user_email=user_email),
     }
 
 
 @router.patch("/{group_id}")
-def update_group(group_id: int, payload: GroupUpdateRequest):
+def update_group(
+    group_id: int, 
+    payload: GroupUpdateRequest,
+    user_email: str = Depends(get_current_user)
+):
+    # Sicherheits-Check: Gehört diese Gruppe überhaupt dem Nutzer?
+    existing_groups = fetch_groups_from_db(user_email=user_email)
+    if not any(g["id"] == group_id for g in existing_groups):
+        raise HTTPException(
+            status_code=404,
+            detail="Gruppe wurde nicht gefunden oder gehört dir nicht."
+        )
+
     normalized_name = validate_group_name(payload.name)
     normalized_color = validate_group_color(payload.color)
 
@@ -107,13 +129,17 @@ def update_group(group_id: int, payload: GroupUpdateRequest):
     return {
         "message": "Gruppe wurde aktualisiert.",
         "group": updated_group,
-        "groups": fetch_groups_from_db(tab_id=updated_group["tab_id"]),
+        "groups": fetch_groups_from_db(tab_id=updated_group["tab_id"], user_email=user_email),
     }
 
 
 @router.delete("/{group_id}")
-def delete_group(group_id: int):
-    existing_groups = fetch_groups_from_db()
+def delete_group(
+    group_id: int,
+    user_email: str = Depends(get_current_user)
+):
+    # Lade nur die Gruppen dieses Nutzers
+    existing_groups = fetch_groups_from_db(user_email=user_email)
     existing_group = None
 
     for group in existing_groups:
@@ -121,10 +147,11 @@ def delete_group(group_id: int):
             existing_group = group
             break
 
+    # Wenn die Gruppe nicht in seiner Liste ist, verweigern
     if not existing_group:
         raise HTTPException(
             status_code=404,
-            detail="Gruppe wurde nicht gefunden."
+            detail="Gruppe wurde nicht gefunden oder gehört dir nicht."
         )
 
     removed_count = delete_group_in_db(group_id)
@@ -137,5 +164,5 @@ def delete_group(group_id: int):
 
     return {
         "message": "Gruppe wurde gelöscht.",
-        "groups": fetch_groups_from_db(tab_id=existing_group["tab_id"]),
+        "groups": fetch_groups_from_db(tab_id=existing_group["tab_id"], user_email=user_email),
     }

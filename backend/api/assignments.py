@@ -2,9 +2,12 @@ import csv
 import io
 from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+# NEU: Unser Türsteher
+from .auth import get_current_user
 
 from database import (
     delete_assignments_in_db,
@@ -12,6 +15,7 @@ from database import (
     fetch_assignments_from_db,
     fetch_groups_from_db,
     fetch_postcode_values_from_db,
+    fetch_tabs_from_db,  # NEU: Importiert, um Tab-Besitz zu prüfen
     upsert_assignments_in_db,
     upsert_postcode_values_in_db,
 )
@@ -55,14 +59,33 @@ def normalize_postcodes(postcodes: List[str]) -> List[str]:
     return cleaned
 
 
+# NEU: Hilfsfunktion, um zu prüfen, ob der Tab dem Nutzer gehört
+def verify_tab_ownership(tab_id: int, user_email: str):
+    user_tabs = fetch_tabs_from_db(user_email=user_email)
+    if not any(t["id"] == tab_id for t in user_tabs):
+        raise HTTPException(
+            status_code=404,
+            detail="Tab wurde nicht gefunden oder gehört dir nicht."
+        )
+
+
 @router.get("/")
-def get_assignments(tab_id: Optional[int] = Query(default=None)):
-    return fetch_assignments_from_db(tab_id=tab_id)
+def get_assignments(
+    tab_id: Optional[int] = Query(default=None),
+    user_email: str = Depends(get_current_user)
+):
+    return fetch_assignments_from_db(tab_id=tab_id, user_email=user_email)
 
 
 @router.get("/export")
-def export_assignments_csv(tab_id: Optional[int] = Query(default=None)):
-    rows = fetch_assignments_export_rows_from_db(tab_id=tab_id)
+def export_assignments_csv(
+    tab_id: Optional[int] = Query(default=None),
+    user_email: str = Depends(get_current_user)
+):
+    if tab_id is not None:
+        verify_tab_ownership(tab_id, user_email)
+
+    rows = fetch_assignments_export_rows_from_db(tab_id=tab_id, user_email=user_email)
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -100,12 +123,15 @@ def export_assignments_csv(tab_id: Optional[int] = Query(default=None)):
 
 
 @router.get("/values")
-def get_postcode_values():
+def get_postcode_values(user_email: str = Depends(get_current_user)):
     return fetch_postcode_values_from_db()
 
 
 @router.post("/values/bulk")
-def create_postcode_values(payload: PostcodeValuesBulkCreateRequest):
+def create_postcode_values(
+    payload: PostcodeValuesBulkCreateRequest,
+    user_email: str = Depends(get_current_user)
+):
     normalized_postcodes = normalize_postcodes(payload.postcodes)
 
     if not normalized_postcodes:
@@ -133,7 +159,11 @@ def create_postcode_values(payload: PostcodeValuesBulkCreateRequest):
 async def import_assignments_csv(
     file: UploadFile = File(...),
     tab_id: int = Query(...),
+    user_email: str = Depends(get_current_user)
 ):
+    # Gehört der Tab dem Nutzer?
+    verify_tab_ownership(tab_id, user_email)
+
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(
             status_code=400,
@@ -159,7 +189,8 @@ async def import_assignments_csv(
             detail="CSV muss die Spalten 'postcode' und 'group_id' enthalten."
         )
 
-    valid_group_ids = {group["id"] for group in fetch_groups_from_db(tab_id=tab_id)}
+    # Lädt nur die Gruppen, die auch wirklich zu dem Nutzer gehören
+    valid_group_ids = {group["id"] for group in fetch_groups_from_db(tab_id=tab_id, user_email=user_email)}
 
     imported_count = 0
     skipped_count = 0
@@ -186,7 +217,7 @@ async def import_assignments_csv(
         if group_id not in valid_group_ids:
             skipped_count += 1
             errors.append(
-                f"Zeile {row_number}: group_id {group_id} existiert im Tab {tab_id} nicht."
+                f"Zeile {row_number}: group_id {group_id} existiert im Tab {tab_id} nicht oder gehört dir nicht."
             )
             continue
 
@@ -205,12 +236,15 @@ async def import_assignments_csv(
         "imported_count": imported_count,
         "skipped_count": skipped_count,
         "errors": errors,
-        "assignments": fetch_assignments_from_db(tab_id=tab_id),
+        "assignments": fetch_assignments_from_db(tab_id=tab_id, user_email=user_email),
     }
 
 
 @router.post("/import-values")
-async def import_postcode_values(file: UploadFile = File(...)):
+async def import_postcode_values(
+    file: UploadFile = File(...),
+    user_email: str = Depends(get_current_user)
+):
     if not file.filename:
         raise HTTPException(
             status_code=400,
@@ -281,7 +315,12 @@ async def import_postcode_values(file: UploadFile = File(...)):
 
 
 @router.post("/bulk")
-def create_assignments(payload: AssignmentCreateRequest):
+def create_assignments(
+    payload: AssignmentCreateRequest,
+    user_email: str = Depends(get_current_user)
+):
+    verify_tab_ownership(payload.tab_id, user_email)
+
     normalized_postcodes = normalize_postcodes(payload.postcodes)
 
     if not normalized_postcodes:
@@ -290,23 +329,28 @@ def create_assignments(payload: AssignmentCreateRequest):
             detail="Keine gültigen fünfstelligen PLZ übergeben."
         )
 
-    valid_group_ids = {group["id"] for group in fetch_groups_from_db(tab_id=payload.tab_id)}
+    valid_group_ids = {group["id"] for group in fetch_groups_from_db(tab_id=payload.tab_id, user_email=user_email)}
     if payload.group_id not in valid_group_ids:
         raise HTTPException(
             status_code=400,
-            detail="Die Gruppe gehört nicht zum angegebenen Tab."
+            detail="Die Gruppe gehört nicht zum angegebenen Tab oder gehört dir nicht."
         )
 
     upsert_assignments_in_db(payload.tab_id, payload.group_id, normalized_postcodes)
 
     return {
         "message": f"{len(normalized_postcodes)} PLZ wurden zugewiesen.",
-        "assignments": fetch_assignments_from_db(tab_id=payload.tab_id),
+        "assignments": fetch_assignments_from_db(tab_id=payload.tab_id, user_email=user_email),
     }
 
 
 @router.delete("/bulk")
-def delete_assignments(payload: AssignmentDeleteRequest):
+def delete_assignments(
+    payload: AssignmentDeleteRequest,
+    user_email: str = Depends(get_current_user)
+):
+    verify_tab_ownership(payload.tab_id, user_email)
+
     normalized_postcodes = normalize_postcodes(payload.postcodes)
 
     if not normalized_postcodes:
@@ -319,5 +363,5 @@ def delete_assignments(payload: AssignmentDeleteRequest):
 
     return {
         "message": f"{removed_count} Zuweisungen wurden entfernt.",
-        "assignments": fetch_assignments_from_db(tab_id=payload.tab_id),
+        "assignments": fetch_assignments_from_db(tab_id=payload.tab_id, user_email=user_email),
     }
