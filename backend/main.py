@@ -19,13 +19,17 @@ from database import (
 
 load_dotenv()
 
-FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
-
 app = FastAPI(title="PLZ Web App API")
 
+# --- SCHRITT 1 FIX: DIE CORS EINSTELLUNGEN ---
+# Hier listen wir explizit auf, welche Domains zugreifen dürfen.
+# Weil 'allow_credentials=True' gesetzt ist, darf hier niemals ein "*" vorkommen!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=[
+        "https://app.standard-grid.com",
+        "http://localhost:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
