@@ -1,4 +1,3 @@
-import MapLegend from "./MapLegend";
 import MapView from "./MapView";
 
 function MapSection({
@@ -70,10 +69,6 @@ function MapSection({
         >
           Filter: {selectedBundesland || "Alle Bundesländer"}
         </div>
-      </div>
-
-      <div style={{ marginBottom: "14px" }}>
-        <MapLegend />
       </div>
 
       <MapView

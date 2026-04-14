@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import SelectionPanel from "./SelectionPanel";
 import Layout from "./Layout";
 import MapSection from "./MapSection";
+import LandingPage from "./LandingPage"; 
 import { AppProvider, useAppContext } from "./AppContext";
 import { createTab, deleteTab, updateTab } from "./api";
 
@@ -110,7 +111,6 @@ function AppContent() {
 
     try {
       let result;
-
       if (editingTabId) {
         result = await updateTab(editingTabId, normalizedName);
       } else {
@@ -140,9 +140,7 @@ function AppContent() {
       `Möchtest du den Produktbereich "${tabName}" wirklich löschen?\n\nAlle Gruppen und Zuweisungen in diesem Bereich gehen verloren.`
     );
 
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
       const result = await deleteTab(tabId);
@@ -162,6 +160,7 @@ function AppContent() {
     }
   };
 
+  // Styles für die App-Shell
   const topShellStyle = {
     background: "rgba(255,255,255,0.78)",
     border: "1px solid rgba(15,23,42,0.07)",
@@ -173,8 +172,8 @@ function AppContent() {
 
   const tabButtonStyle = (isActive) => ({
     border: "none",
-    background: isActive ? "#0f172a" : "transparent",
-    color: isActive ? "white" : "#0f172a",
+    background: isActive ? "#1d1d1f" : "transparent",
+    color: isActive ? "white" : "#1d1d1f",
     borderRadius: "999px",
     padding: "12px 18px",
     cursor: "pointer",
@@ -187,12 +186,12 @@ function AppContent() {
 
   const subtleButtonStyle = {
     border: "none",
-    background: "#eef2f7",
-    color: "#0f172a",
+    background: "#f5f5f7",
+    color: "#1d1d1f",
     borderRadius: "999px",
     padding: "10px 14px",
     cursor: "pointer",
-    fontWeight: 650,
+    fontWeight: 600,
     fontSize: "13px",
     whiteSpace: "nowrap",
   };
@@ -205,139 +204,43 @@ function AppContent() {
 
   return (
     <Layout>
-      <div
-        style={{
-          marginBottom: "18px",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "64px",
-            lineHeight: 0.95,
-            fontWeight: 750,
-            letterSpacing: "-0.055em",
-            color: "#020617",
-            marginBottom: "10px",
-          }}
-        >
-          Standard Grid
+      {/* Header Bereich Dashboard */}
+      <div style={{ marginBottom: "24px", textAlign: "center" }}>
+        <div style={{ fontSize: "56px", lineHeight: 0.95, fontWeight: 750, letterSpacing: "-0.04em", color: "#1d1d1f", marginBottom: "10px" }}>
+          standardgrid
         </div>
-
-        <div
-          style={{
-            fontSize: "18px",
-            color: "#6b7280",
-            lineHeight: 1.35,
-            letterSpacing: "-0.01em",
-          }}
-        >
+        <div style={{ fontSize: "18px", color: "#86868b", lineHeight: 1.35 }}>
           Gebiete auswählen, Gruppen zuweisen und geschützt gemeinsam nutzen.
         </div>
       </div>
 
-      <div
-        style={{
-          ...topShellStyle,
-          padding: "18px 20px",
-          marginBottom: "24px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "14px",
-            marginBottom: tabOptions.length > 0 ? "14px" : "0",
-            flexWrap: "wrap",
-          }}
-        >
+      {/* Produktbereiche / Tabs Editor */}
+      <div style={{ ...topShellStyle, padding: "18px 20px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: tabOptions.length > 0 ? "14px" : "0", flexWrap: "wrap" }}>
           <div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#6b7280",
-                marginBottom: "4px",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-              }}
-            >
+            <div style={{ fontSize: "12px", color: "#86868b", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Produktbereiche
             </div>
-            <div
-              style={{
-                fontSize: "22px",
-                fontWeight: 700,
-                letterSpacing: "-0.03em",
-                color: "#0f172a",
-              }}
-            >
+            <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.03em", color: "#1d1d1f" }}>
               {activeTab?.name || "Kein Bereich gewählt"}
             </div>
           </div>
-
-          <button onClick={handleStartCreateTab} style={subtleButtonStyle}>
-            Neuer Bereich
-          </button>
+          <button onClick={handleStartCreateTab} style={subtleButtonStyle}>Neuer Bereich</button>
         </div>
 
         {isLoadingTabs ? (
-          <div style={{ color: "#666", fontSize: "14px" }}>Bereiche werden geladen...</div>
+          <div style={{ color: "#86868b", fontSize: "14px" }}>Bereiche werden geladen...</div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              flexWrap: "wrap",
-              padding: "8px",
-              borderRadius: "999px",
-              background: "rgba(248,250,252,0.9)",
-              border: "1px solid rgba(15,23,42,0.06)",
-              marginBottom: showTabEditor || tabMessage ? "14px" : "0",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", padding: "8px", borderRadius: "999px", background: "rgba(248,250,252,0.9)", border: "1px solid rgba(15,23,42,0.06)", marginBottom: showTabEditor || tabMessage ? "14px" : "0" }}>
             {tabOptions.map((tab) => {
               const isActive = tab.id === selectedTabId;
-
               return (
-                <div
-                  key={tab.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: isActive ? "4px" : "0",
-                    borderRadius: "999px",
-                    background: isActive ? "rgba(255,255,255,0.9)" : "transparent",
-                    border: isActive
-                      ? "1px solid rgba(15,23,42,0.06)"
-                      : "1px solid transparent",
-                  }}
-                >
-                  <button
-                    onClick={() => setSelectedTabId(tab.id)}
-                    style={tabButtonStyle(isActive)}
-                  >
-                    {tab.name}
-                  </button>
-
+                <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: isActive ? "4px" : "0", borderRadius: "999px", background: isActive ? "rgba(255,255,255,0.9)" : "transparent", border: isActive ? "1px solid rgba(15,23,42,0.06)" : "1px solid transparent" }}>
+                  <button onClick={() => setSelectedTabId(tab.id)} style={tabButtonStyle(isActive)}>{tab.name}</button>
                   {isActive && (
                     <>
-                      <button
-                        onClick={() => handleStartEditTab(tab)}
-                        style={subtleButtonStyle}
-                      >
-                        Bearbeiten
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteTab(tab.id, tab.name)}
-                        style={dangerButtonStyle}
-                      >
-                        Löschen
-                      </button>
+                      <button onClick={() => handleStartEditTab(tab)} style={subtleButtonStyle}>Bearbeiten</button>
+                      <button onClick={() => handleDeleteTab(tab.id, tab.name)} style={dangerButtonStyle}>Löschen</button>
                     </>
                   )}
                 </div>
@@ -347,76 +250,19 @@ function AppContent() {
         )}
 
         {showTabEditor && (
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              flexWrap: "wrap",
-              marginBottom: tabMessage ? "10px" : "0",
-            }}
-          >
-            <input
-              type="text"
-              placeholder="Name des Produktbereichs"
-              value={tabFormName}
-              onChange={(e) => setTabFormName(e.target.value)}
-              style={{
-                flex: 1,
-                minWidth: "260px",
-                padding: "13px 16px",
-                borderRadius: "18px",
-                border: "1px solid rgba(15,23,42,0.09)",
-                background: "#ffffff",
-                fontSize: "15px",
-                boxSizing: "border-box",
-                outline: "none",
-              }}
-            />
-
-            <button
-              onClick={handleSaveTab}
-              style={{
-                border: "none",
-                background: "#0f172a",
-                color: "white",
-                borderRadius: "18px",
-                padding: "13px 18px",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "14px",
-              }}
-            >
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: tabMessage ? "10px" : "0" }}>
+            <input type="text" placeholder="Name des Produktbereichs" value={tabFormName} onChange={(e) => setTabFormName(e.target.value)} style={{ flex: 1, minWidth: "260px", padding: "13px 16px", borderRadius: "18px", border: "1px solid rgba(15,23,42,0.09)", background: "#ffffff", fontSize: "15px", outline: "none" }} />
+            <button onClick={handleSaveTab} style={{ border: "none", background: "#1d1d1f", color: "white", borderRadius: "18px", padding: "13px 18px", cursor: "pointer", fontWeight: 700, fontSize: "14px" }}>
               {editingTabId ? "Speichern" : "Anlegen"}
             </button>
-
-            <button
-              onClick={resetTabForm}
-              style={{
-                ...subtleButtonStyle,
-                padding: "13px 16px",
-                borderRadius: "18px",
-              }}
-            >
-              Abbrechen
-            </button>
+            <button onClick={resetTabForm} style={{ ...subtleButtonStyle, padding: "13px 16px", borderRadius: "18px" }}>Abbrechen</button>
           </div>
         )}
-
-        {tabMessage && (
-          <div style={{ fontSize: "13px", color: "#555" }}>
-            {tabMessage}
-          </div>
-        )}
+        {tabMessage && <div style={{ fontSize: "13px", color: "#86868b", marginTop: "10px" }}>{tabMessage}</div>}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: "24px",
-          alignItems: "start",
-        }}
-      >
+      {/* Haupt-Grid: Karte und Panel */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px", alignItems: "start" }}>
         <MapSection
           geoFeatures={geoFeaturesData}
           isLoadingGeoFeatures={isLoadingGeoFeatures}
@@ -427,7 +273,6 @@ function AppContent() {
           groups={groupOptions}
           assignments={assignmentData}
         />
-
         <SelectionPanel
           selectedItems={selectedItems}
           removePlz={removePlz}
@@ -457,7 +302,22 @@ function AppContent() {
   );
 }
 
+// DIE HAUPT-WEICHE (App Komponente)
 function App() {
+  const hostname = window.location.hostname;
+  
+  // Erkennt automatisch localhost oder die App-Subdomain
+  const isAppDomain = 
+    hostname === "app.standard-grid.com" || 
+    hostname === "localhost" || 
+    hostname === "127.0.0.1";
+
+  // Wenn nicht auf der App-Domain, zeige Landingpage
+  if (!isAppDomain) {
+    return <LandingPage />;
+  }
+
+  // Ansonsten lade den AppProvider und den Dashboard-Inhalt
   return (
     <AppProvider>
       <AppContent />
