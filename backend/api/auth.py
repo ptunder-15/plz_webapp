@@ -1,17 +1,19 @@
-import os
-from fastapi import Header, HTTPException
+from fastapi import Request, HTTPException
 
-def get_current_user(cf_access_authenticated_user_email: str = Header(default=None)):
-    """
-    Liest die E-Mail des eingeloggten Nutzers aus dem Cloudflare-Header aus.
-    """
-    # 1. Prüfen, ob der Header von Cloudflare da ist (Live-Umgebung)
-    if cf_access_authenticated_user_email:
-        return cf_access_authenticated_user_email
+def get_current_user(request: Request):
+    # Cloudflare Access schickt die E-Mail des Nutzers in diesem Header
+    user_email = request.headers.get("Cf-Access-Authenticated-User-Email")
     
-    # 2. Wenn kein Header da ist, prüfen wir, ob wir lokal entwickeln
-    if os.getenv("ENVIRONMENT") == "local":
-        return "kollege@entwickler.de" # Dein Test-Account für die lokale Entwicklung
+    # Lokale Entwicklung erlauben (localhost)
+    host = request.headers.get("host", "")
+    if "localhost" in host or "127.0.0.1" in host:
+        return "admin@standard-grid.com"
+
+    # In der Produktion MUSS dieser Header existieren
+    if not user_email:
+        raise HTTPException(
+            status_code=401, 
+            detail="Kein Cloudflare-Sitzungs-Header gefunden. Bitte einloggen."
+        )
     
-    # 3. Wenn wir live sind, aber kein Header da ist -> Zugriff verweigern
-    raise HTTPException(status_code=401, detail="Nicht authentifiziert")
+    return user_email
