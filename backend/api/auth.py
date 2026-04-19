@@ -1,29 +1,40 @@
+import json
+import base64
 from fastapi import Request, HTTPException
-import logging
-
-# Logger einrichten, damit wir es in den Render-Logs sehen
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 def get_current_user(request: Request):
-    # Wir loggen ALLE Header, die bei Render ankommen!
-    logger.info("=== NEUER REQUEST ===")
-    logger.info(f"Alle eingehenden Header: {request.headers}")
-    
-    user_email = request.headers.get("Cf-Access-Authenticated-User-Email")
-    
-    # Lokaler Check (unverändert)
+    # 1. Lokale Entwicklung durchwinken
     host = request.headers.get("host", "")
     if "localhost" in host or "127.0.0.1" in host:
         return "admin@standard-grid.com"
 
-    # Wenn die E-Mail fehlt, geben wir im Fehler exakt aus, WELCHE Header wir bekommen haben.
-    if not user_email:
-        # Wir machen die Header zu einem String, damit wir sie in der Fehlermeldung lesen können
-        header_str = str(dict(request.headers))
-        raise HTTPException(
-            status_code=401, 
-            detail=f"Nicht authentifiziert. Diese Header kamen an: {header_str}"
-        )
-    
-    return user_email
+    # 2. Den alten Header prüfen (falls Cloudflare ihn doch mal schickt)
+    email = request.headers.get("cf-access-authenticated-user-email")
+    if email:
+        return email
+
+    # 3. Das verschlüsselte JWT-Token von Cloudflare knacken (Das ist unser Fix!)
+    jwt_token = request.headers.get("cf-access-jwt-assertion")
+    if jwt_token:
+        try:
+            # Ein JWT besteht aus 3 Teilen (Header.Payload.Signature). Wir brauchen den mittleren Teil (Payload).
+            payload_b64 = jwt_token.split('.')[1]
+            
+            # Base64-Padding reparieren (wichtig für Python)
+            payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+            
+            # Entschlüsseln und in ein Dictionary umwandeln
+            payload_json = base64.b64decode(payload_b64).decode('utf-8')
+            payload = json.loads(payload_json)
+            
+            # E-Mail aus dem Token zurückgeben!
+            if "email" in payload:
+                return payload["email"]
+        except Exception:
+            pass # Falls das Token kaputt ist, fallen wir unten in den 401-Fehler
+
+    # 4. Wenn wirklich gar nichts da ist -> Rauswerfen
+    raise HTTPException(
+        status_code=401, 
+        detail="Zugriff verweigert. Kein gültiges Cloudflare-Token gefunden."
+    )
