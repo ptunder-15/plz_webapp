@@ -124,7 +124,7 @@ def export_assignments_csv(
 
 @router.get("/values")
 def get_postcode_values(user_email: str = Depends(get_current_user)):
-    return fetch_postcode_values_from_db()
+    return fetch_postcode_values_from_db(user_email=user_email)
 
 
 @router.post("/values/bulk")
@@ -140,18 +140,12 @@ def create_postcode_values(
             detail="Keine gültigen fünfstelligen PLZ übergeben."
         )
 
-    rows_to_upsert = []
-    for postcode in normalized_postcodes:
-        rows_to_upsert.append({
-            "postcode": postcode,
-            "value": payload.value,
-        })
-
-    upsert_postcode_values_in_db(rows_to_upsert)
+    rows_to_upsert = [{"postcode": p, "value": payload.value} for p in normalized_postcodes]
+    upsert_postcode_values_in_db(rows_to_upsert, user_email=user_email)
 
     return {
         "message": f"{len(normalized_postcodes)} PLZ-Werte wurden gespeichert.",
-        "values": fetch_postcode_values_from_db(),
+        "values": fetch_postcode_values_from_db(user_email=user_email),
     }
 
 
@@ -302,7 +296,7 @@ async def import_postcode_values(
         })
 
     if rows_to_upsert:
-        upsert_postcode_values_in_db(rows_to_upsert)
+        upsert_postcode_values_in_db(rows_to_upsert, user_email=user_email)
         imported_count = len(rows_to_upsert)
 
     return {
@@ -310,7 +304,7 @@ async def import_postcode_values(
         "imported_count": imported_count,
         "skipped_count": skipped_count,
         "errors": errors,
-        "values": fetch_postcode_values_from_db(),
+        "values": fetch_postcode_values_from_db(user_email=user_email),
     }
 
 

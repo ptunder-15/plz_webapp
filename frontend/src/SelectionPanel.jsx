@@ -118,20 +118,14 @@ function SelectionPanel({
         const groupCompare = a.groupName.localeCompare(b.groupName, "de", {
           sensitivity: "base",
         });
-
         if (groupCompare !== 0) return groupCompare;
-
-        return a.postcode.localeCompare(b.postcode, "de", {
-          sensitivity: "base",
-        });
+        return a.postcode.localeCompare(b.postcode, "de", { sensitivity: "base" });
       });
   }, [assignments, postcodeRecordByPostcode, groupById]);
 
   const filteredItems = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
-
     if (!query) return selectedItems;
-
     return selectedItems.filter((item) => {
       const plz = String(item?.plz || "").toLowerCase();
       const name = String(item?.name || "").toLowerCase();
@@ -141,18 +135,15 @@ function SelectionPanel({
 
   const filteredAssignmentListItems = useMemo(() => {
     const query = assignmentSearchValue.trim().toLowerCase();
-
     return assignmentListItems.filter((item) => {
       const matchesSearch =
         !query ||
         item.postcode.toLowerCase().includes(query) ||
         item.groupName.toLowerCase().includes(query) ||
         String(item.name || "").toLowerCase().includes(query);
-
       const matchesGroup =
         !assignmentGroupFilter ||
         String(item.groupId) === String(assignmentGroupFilter);
-
       return matchesSearch && matchesGroup;
     });
   }, [assignmentListItems, assignmentSearchValue, assignmentGroupFilter]);
@@ -213,10 +204,8 @@ function SelectionPanel({
     }
 
     let parsedValue = null;
-
     if (normalizedValue !== "") {
       parsedValue = Number(normalizedValue);
-
       if (Number.isNaN(parsedValue)) {
         setGroupFormMessage("Bitte einen gültigen numerischen Wert eingeben.");
         return;
@@ -225,21 +214,10 @@ function SelectionPanel({
 
     try {
       let result;
-
       if (editingGroupId) {
-        result = await updateGroup(
-          editingGroupId,
-          normalizedName,
-          groupFormColor,
-          parsedValue
-        );
+        result = await updateGroup(editingGroupId, normalizedName, groupFormColor, parsedValue);
       } else {
-        result = await createGroup(
-          selectedTabId,
-          normalizedName,
-          groupFormColor,
-          parsedValue
-        );
+        result = await createGroup(selectedTabId, normalizedName, groupFormColor, parsedValue);
       }
 
       await reloadGroups?.();
@@ -258,22 +236,14 @@ function SelectionPanel({
     const confirmed = window.confirm(
       `Möchtest du die Gruppe "${groupName}" wirklich löschen?\n\nAlle Zuweisungen dieser Gruppe gehen dabei verloren.`
     );
-
     if (!confirmed) return;
 
     try {
       const result = await deleteGroup(groupId);
       await reloadGroups?.();
       await reloadAssignments?.();
-
-      if (selectedGroupId === groupId) {
-        setSelectedGroupId?.(null);
-      }
-
-      if (editingGroupId === groupId) {
-        resetGroupForm();
-      }
-
+      if (selectedGroupId === groupId) setSelectedGroupId?.(null);
+      if (editingGroupId === groupId) resetGroupForm();
       setGroupFormMessage(result.message || "Gruppe gelöscht.");
     } catch (error) {
       setGroupFormMessage(error.message || "Fehler beim Löschen der Gruppe.");
@@ -282,47 +252,29 @@ function SelectionPanel({
 
   const handleAddPlz = () => {
     const normalized = addPlzValue.trim();
-
     if (!/^\d{5}$/.test(normalized)) {
       setAddPlzMessage("Bitte eine gültige fünfstellige PLZ eingeben.");
       return;
     }
-
     const exists = postcodeRecords.some((item) => item?.postcode === normalized);
-
     if (!exists) {
       setAddPlzMessage("Diese PLZ wurde in den geladenen Datensätzen nicht gefunden.");
       return;
     }
-
     addPlz?.(normalized);
     setAddPlzMessage(`PLZ ${normalized} wurde zur Auswahl hinzugefügt.`);
     setAddPlzValue("");
   };
 
   const handleAssignToGroup = async () => {
-    if (!selectedTabId) {
-      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
-      return;
-    }
-
-    if (!selectedGroupId) {
-      setAssignmentMessage("Bitte zuerst eine Gruppe auswählen.");
-      return;
-    }
-
-    if (selectedItems.length === 0) {
-      setAssignmentMessage("Bitte zuerst mindestens eine PLZ auswählen.");
-      return;
-    }
+    if (!selectedTabId) { setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen."); return; }
+    if (!selectedGroupId) { setAssignmentMessage("Bitte zuerst eine Gruppe auswählen."); return; }
+    if (selectedItems.length === 0) { setAssignmentMessage("Bitte zuerst mindestens eine PLZ auswählen."); return; }
 
     try {
       const result = await assignPostcodesToGroup(
-        selectedTabId,
-        selectedGroupId,
-        selectedItems.map((item) => item.plz)
+        selectedTabId, selectedGroupId, selectedItems.map((item) => item.plz)
       );
-
       await reloadAssignments?.();
       clearSelection?.();
       setAssignmentMessage(result.message || "Zuweisung gespeichert.");
@@ -332,36 +284,20 @@ function SelectionPanel({
   };
 
   const handleRemoveSelectedAssignments = async () => {
-    if (!selectedTabId) {
-      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
-      return;
-    }
-
+    if (!selectedTabId) { setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen."); return; }
     if (selectedAssignedPostcodes.length === 0) {
       setAssignmentMessage("In der aktuellen Auswahl gibt es keine bestehenden Gruppenzuweisungen.");
       return;
     }
-
     const confirmed = window.confirm(
       `Möchtest du ${selectedAssignedPostcodes.length} ausgewählte PLZ aus ihrer bisherigen Gruppe entfernen?`
     );
-
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
 
     try {
-      const result = await deleteAssignmentsByPostcodes(
-        selectedTabId,
-        selectedAssignedPostcodes
-      );
-
+      const result = await deleteAssignmentsByPostcodes(selectedTabId, selectedAssignedPostcodes);
       await reloadAssignments?.();
-
-      selectedAssignedPostcodes.forEach((postcode) => {
-        removePlz?.(postcode);
-      });
-
+      selectedAssignedPostcodes.forEach((postcode) => removePlz?.(postcode));
       setAssignmentMessage(result.message || "Zuweisungen entfernt.");
     } catch (error) {
       setAssignmentMessage(error.message || "Fehler beim Entfernen der Zuweisungen.");
@@ -369,19 +305,13 @@ function SelectionPanel({
   };
 
   const handleRemoveAssignment = async (postcode) => {
-    if (!selectedTabId) {
-      setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen.");
-      return;
-    }
-
+    if (!selectedTabId) { setAssignmentMessage("Bitte zuerst einen Produktbereich auswählen."); return; }
     const assignment = assignmentByPostcode[postcode];
     const assignedGroup = assignment ? groupById[assignment.group_id] : null;
     const groupLabel = assignedGroup?.name ? ` aus ${assignedGroup.name}` : "";
-
     const confirmed = window.confirm(
       `Möchtest du die Zuweisung der PLZ ${postcode}${groupLabel} wirklich entfernen?`
     );
-
     if (!confirmed) return;
 
     try {
@@ -399,16 +329,8 @@ function SelectionPanel({
   };
 
   const handleImportAssignments = async () => {
-    if (!selectedTabId) {
-      setImportMessage("Bitte zuerst einen Produktbereich auswählen.");
-      return;
-    }
-
-    if (!importFile) {
-      setImportMessage("Bitte zuerst eine CSV-Datei auswählen.");
-      return;
-    }
-
+    if (!selectedTabId) { setImportMessage("Bitte zuerst einen Produktbereich auswählen."); return; }
+    if (!importFile) { setImportMessage("Bitte zuerst eine CSV-Datei auswählen."); return; }
     try {
       const result = await importAssignmentsCsv(importFile, selectedTabId);
       await reloadAssignments?.();
@@ -420,146 +342,67 @@ function SelectionPanel({
   };
 
   const renderGroupValueText = (value) => {
-    if (value === null || value === undefined || value === "") {
-      return "Kein Wert";
-    }
+    if (value === null || value === undefined || value === "") return "Kein Wert";
     return String(value);
   };
 
-  const shellCard = {
-    background: "rgba(255,255,255,0.82)",
-    border: "1px solid rgba(15,23,42,0.07)",
-    borderRadius: "24px",
-    boxShadow: "0 10px 30px rgba(15,23,42,0.06)",
-    backdropFilter: "blur(16px)",
-    WebkitBackdropFilter: "blur(16px)",
-  };
-
-  const softCard = {
-    background: "#ffffff",
-    border: "1px solid rgba(15,23,42,0.08)",
-    borderRadius: "20px",
-    boxShadow: "0 4px 14px rgba(15,23,42,0.04)",
-  };
-
-  const subtleButton = {
-    border: "none",
-    background: "#eef2f7",
-    color: "#111827",
-    borderRadius: "999px",
-    padding: "8px 12px",
-    cursor: "pointer",
-    fontWeight: 600,
-    fontSize: "12px",
-  };
-
-  const groupPickerCardStyle = (group, isActive) => ({
-    border: isActive
-      ? "2px solid rgba(15,23,42,0.9)"
-      : "1px solid rgba(15,23,42,0.08)",
-    background: isActive
-      ? `linear-gradient(180deg, ${group.color}22 0%, ${group.color}10 100%)`
-      : "#ffffff",
-    borderRadius: "18px",
-    padding: "12px",
-    cursor: "pointer",
-    boxShadow: isActive
-      ? `0 10px 24px ${group.color}22`
-      : "0 4px 12px rgba(15,23,42,0.04)",
-    transition: "all 0.16s ease",
-  });
-
   return (
-    <aside
-      style={{
-        ...shellCard,
-        padding: "20px",
-        minHeight: "500px",
-      }}
-    >
+    <aside className="shell-card panel-aside">
+      {/* Header */}
       <div style={{ marginBottom: "18px" }}>
-        <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>
-          Produktbereich
-        </div>
+        <div style={{ fontSize: "12px", color: "#6b7280", marginBottom: "6px" }}>Produktbereich</div>
         <div style={{ fontSize: "28px", fontWeight: 700, letterSpacing: "-0.03em" }}>
           {activeTabName || "Kein Bereich gewählt"}
         </div>
-        <div style={{ marginTop: "8px", fontSize: "14px", color: "#6b7280" }}>
-          {activeFilterLabel}
-        </div>
+        <div style={{ marginTop: "8px", fontSize: "14px", color: "#6b7280" }}>{activeFilterLabel}</div>
       </div>
 
+      {/* Stats */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "18px" }}>
-        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
-          <div style={{ fontSize: "24px", fontWeight: 700 }}>{selectedItems.length}</div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>Ausgewählt</div>
-        </div>
-        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
-          <div style={{ fontSize: "24px", fontWeight: 700 }}>{sortedGroups.length}</div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>Gruppen</div>
-        </div>
-        <div style={{ ...softCard, flex: 1, padding: "14px" }}>
-          <div style={{ fontSize: "24px", fontWeight: 700 }}>{assignments.length}</div>
-          <div style={{ fontSize: "12px", color: "#6b7280" }}>Zuweisungen</div>
-        </div>
+        {[
+          { value: selectedItems.length, label: "Ausgewählt" },
+          { value: sortedGroups.length, label: "Gruppen" },
+          { value: assignments.length, label: "Zuweisungen" },
+        ].map(({ value, label }) => (
+          <div key={label} className="soft-card" style={{ flex: 1, padding: "14px" }}>
+            <div style={{ fontSize: "24px", fontWeight: 700 }}>{value}</div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>{label}</div>
+          </div>
+        ))}
       </div>
 
-      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
-        <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>
-          Aktuelle Aktion
-        </div>
-
+      {/* Gruppe zuweisen */}
+      <div className="soft-card" style={{ padding: "16px", marginBottom: "18px" }}>
+        <div style={{ fontSize: "13px", color: "#6b7280", marginBottom: "8px" }}>Aktuelle Aktion</div>
         <div style={{ fontSize: "15px", fontWeight: 700, marginBottom: "10px", color: "#111827" }}>
           Gruppe für die Auswahl
         </div>
 
         {sortedGroups.length > 0 ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "10px",
-              marginBottom: "12px",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
             {sortedGroups.map((group) => {
               const isActive = selectedGroupId === group.id;
-
               return (
                 <button
                   key={group.id}
                   onClick={() => setSelectedGroupId?.(group.id)}
-                  style={groupPickerCardStyle(group, isActive)}
+                  className="btn"
+                  style={{
+                    border: isActive ? "2px solid rgba(15,23,42,0.9)" : "1px solid rgba(15,23,42,0.08)",
+                    background: isActive
+                      ? `linear-gradient(180deg, ${group.color}22 0%, ${group.color}10 100%)`
+                      : "#ffffff",
+                    borderRadius: "18px",
+                    padding: "12px",
+                    boxShadow: isActive ? `0 10px 24px ${group.color}22` : "0 4px 12px rgba(15,23,42,0.04)",
+                    transition: "all 0.16s ease",
+                  }}
                 >
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "10px",
-                      borderRadius: "999px",
-                      background: group.color,
-                      marginBottom: "10px",
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      textAlign: "left",
-                      fontWeight: 700,
-                      fontSize: "14px",
-                      color: "#111827",
-                      marginBottom: "4px",
-                    }}
-                  >
+                  <div style={{ width: "100%", height: "10px", borderRadius: "999px", background: group.color, marginBottom: "10px" }} />
+                  <div style={{ textAlign: "left", fontWeight: 700, fontSize: "14px", color: "#111827", marginBottom: "4px" }}>
                     {group.name}
                   </div>
-
-                  <div
-                    style={{
-                      textAlign: "left",
-                      fontSize: "12px",
-                      color: "#6b7280",
-                    }}
-                  >
+                  <div style={{ textAlign: "left", fontSize: "12px", color: "#6b7280" }}>
                     {renderGroupValueText(group.value)}
                   </div>
                 </button>
@@ -567,229 +410,93 @@ function SelectionPanel({
             })}
           </div>
         ) : (
-          <div
-            style={{
-              ...softCard,
-              padding: "14px",
-              fontSize: "14px",
-              color: "#6b7280",
-              marginBottom: "12px",
-            }}
-          >
+          <div className="soft-card message-text" style={{ padding: "14px", marginBottom: "12px" }}>
             Noch keine Gruppen vorhanden.
           </div>
         )}
 
-        <div
-          style={{
-            ...softCard,
-            padding: "12px 14px",
-            marginBottom: "12px",
-            background: "#f8fafc",
-          }}
-        >
+        <div className="soft-card" style={{ padding: "12px 14px", marginBottom: "12px", background: "#f8fafc" }}>
           {selectedGroup ? (
             <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-              <div
-                style={{
-                  width: "16px",
-                  height: "16px",
-                  borderRadius: "6px",
-                  background: selectedGroup.color,
-                  border: "1px solid rgba(15,23,42,0.12)",
-                  flexShrink: 0,
-                }}
-              />
+              <div style={{ width: "16px", height: "16px", borderRadius: "6px", background: selectedGroup.color, border: "1px solid rgba(15,23,42,0.12)", flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: "14px" }}>
-                  Aktiv: {selectedGroup.name}
-                </div>
-                <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                  Wert: {renderGroupValueText(selectedGroup.value)}
-                </div>
+                <div style={{ fontWeight: 700, fontSize: "14px" }}>Aktiv: {selectedGroup.name}</div>
+                <div style={{ fontSize: "12px", color: "#6b7280" }}>Wert: {renderGroupValueText(selectedGroup.value)}</div>
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: "13px", color: "#6b7280" }}>
-              Wähle eine Gruppe direkt über die Farbkarten aus.
-            </div>
+            <div style={{ fontSize: "13px", color: "#6b7280" }}>Wähle eine Gruppe direkt über die Farbkarten aus.</div>
           )}
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
           <button
+            className="btn sp-btn-dark"
             onClick={handleAssignToGroup}
-            style={{
-              width: "100%",
-              border: "none",
-              background:
-                "linear-gradient(180deg, rgba(17,24,39,1) 0%, rgba(31,41,55,1) 100%)",
-              color: "white",
-              borderRadius: "18px",
-              padding: "14px 16px",
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: "15px",
-              boxShadow: selectedGroup
-                ? `0 10px 22px ${selectedGroup.color}33`
-                : "0 10px 20px rgba(17,24,39,0.18)",
-            }}
+            style={{ boxShadow: selectedGroup ? `0 10px 22px ${selectedGroup.color}33` : "0 10px 20px rgba(17,24,39,0.18)" }}
           >
             Auswahl dieser Gruppe zuweisen
           </button>
-
-          <button
-            onClick={handleRemoveSelectedAssignments}
-            style={{
-              width: "100%",
-              border: "none",
-              background: "#eef2f7",
-              color: "#111827",
-              borderRadius: "18px",
-              padding: "12px 16px",
-              cursor: "pointer",
-              fontWeight: 700,
-              fontSize: "14px",
-            }}
-          >
+          <button className="btn sp-btn-muted" onClick={handleRemoveSelectedAssignments}>
             Auswahl aus bestehender Gruppe entfernen
           </button>
         </div>
 
         {assignmentMessage && (
-          <div style={{ marginTop: "10px", fontSize: "13px", color: "#4b5563" }}>
-            {assignmentMessage}
-          </div>
+          <div className="message-text--dark" style={{ marginTop: "10px" }}>{assignmentMessage}</div>
         )}
       </div>
 
-      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "12px",
-          }}
-        >
+      {/* Gruppen verwalten */}
+      <div className="soft-card" style={{ padding: "16px", marginBottom: "18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: "15px" }}>Gruppen</div>
-            <div style={{ fontSize: "12px", color: "#6b7280" }}>
-              Farben, Namen und Werte verwalten
-            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>Farben, Namen und Werte verwalten</div>
           </div>
-
-          <button onClick={handleStartCreateGroup} style={subtleButton}>
-            Neue Gruppe
-          </button>
+          <button className="btn sp-btn-subtle" onClick={handleStartCreateGroup}>Neue Gruppe</button>
         </div>
 
         {showGroupEditor && (
-          <div
-            style={{
-              ...softCard,
-              padding: "12px",
-              marginBottom: "12px",
-              background: "#f8fafc",
-            }}
-          >
+          <div className="soft-card" style={{ padding: "12px", marginBottom: "12px", background: "#f8fafc" }}>
             <input
               type="text"
               placeholder="Gruppenname"
               value={groupFormName}
               onChange={(e) => setGroupFormName(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px 14px",
-                borderRadius: "14px",
-                border: "1px solid rgba(15,23,42,0.09)",
-                background: "white",
-                fontSize: "14px",
-                marginBottom: "10px",
-                boxSizing: "border-box",
-              }}
+              className="form-input form-input--white"
+              style={{ marginBottom: "10px" }}
             />
-
             <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
               <input
                 type="color"
                 value={groupFormColor}
                 onChange={(e) => setGroupFormColor(e.target.value)}
-                style={{
-                  width: "54px",
-                  height: "44px",
-                  borderRadius: "14px",
-                  border: "1px solid rgba(15,23,42,0.09)",
-                  background: "white",
-                  padding: "4px",
-                  boxSizing: "border-box",
-                }}
+                style={{ width: "54px", height: "44px", borderRadius: "14px", border: "1px solid rgba(15,23,42,0.09)", background: "white", padding: "4px", boxSizing: "border-box" }}
               />
-
               <input
                 type="text"
                 placeholder="Optionaler Wert"
                 value={groupFormValue}
                 onChange={(e) => setGroupFormValue(e.target.value)}
-                style={{
-                  flex: 1,
-                  padding: "12px 14px",
-                  borderRadius: "14px",
-                  border: "1px solid rgba(15,23,42,0.09)",
-                  background: "white",
-                  fontSize: "14px",
-                  boxSizing: "border-box",
-                }}
+                className="form-input form-input--white"
+                style={{ flex: 1, width: "auto" }}
               />
             </div>
-
             <div style={{ display: "flex", gap: "8px", marginBottom: groupFormMessage ? "10px" : "0" }}>
-              <button
-                onClick={handleSaveGroup}
-                style={{
-                  flex: 1,
-                  border: "none",
-                  background: "#111827",
-                  color: "white",
-                  borderRadius: "14px",
-                  padding: "11px 12px",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
+              <button className="btn sp-btn-action" style={{ flex: 1 }} onClick={handleSaveGroup}>
                 {editingGroupId ? "Änderungen speichern" : "Gruppe anlegen"}
               </button>
-
-              <button
-                onClick={resetGroupForm}
-                style={{
-                  border: "none",
-                  background: "#e5e7eb",
-                  color: "#111827",
-                  borderRadius: "14px",
-                  padding: "11px 12px",
-                  cursor: "pointer",
-                  fontWeight: 700,
-                }}
-              >
-                Schließen
-              </button>
+              <button className="btn sp-btn-cancel" onClick={resetGroupForm}>Schließen</button>
             </div>
-
-            {groupFormMessage && (
-              <div style={{ fontSize: "13px", color: "#4b5563" }}>
-                {groupFormMessage}
-              </div>
-            )}
+            {groupFormMessage && <div className="message-text--dark">{groupFormMessage}</div>}
           </div>
         )}
 
         {sortedGroups.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "260px", overflowY: "auto" }}>
+          <div className="scroll-list" style={{ maxHeight: "260px" }}>
             {sortedGroups.map((group) => {
               const isActive = selectedGroupId === group.id;
-
               return (
                 <div
                   key={group.id}
@@ -797,71 +504,24 @@ function SelectionPanel({
                     padding: "12px",
                     borderRadius: "16px",
                     background: isActive ? "#eef4ff" : "#f8fafc",
-                    border: isActive
-                      ? "1px solid rgba(59,130,246,0.28)"
-                      : "1px solid rgba(15,23,42,0.06)",
+                    border: isActive ? "1px solid rgba(59,130,246,0.28)" : "1px solid rgba(15,23,42,0.06)",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "10px",
-                    }}
-                  >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}>
                     <button
                       onClick={() => setSelectedGroupId?.(group.id)}
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        padding: 0,
-                        margin: 0,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        flex: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
+                      className="btn"
+                      style={{ background: "transparent", padding: 0, textAlign: "left", flex: 1, display: "flex", alignItems: "center", gap: "10px" }}
                     >
-                      <div
-                        style={{
-                          width: "14px",
-                          height: "14px",
-                          borderRadius: "5px",
-                          background: group.color,
-                          border: "1px solid rgba(15,23,42,0.12)",
-                          flexShrink: 0,
-                        }}
-                      />
+                      <div style={{ width: "14px", height: "14px", borderRadius: "5px", background: group.color, border: "1px solid rgba(15,23,42,0.12)", flexShrink: 0 }} />
                       <div>
-                        <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
-                          {group.name}
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                          {renderGroupValueText(group.value)}
-                        </div>
+                        <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>{group.name}</div>
+                        <div style={{ fontSize: "12px", color: "#6b7280" }}>{renderGroupValueText(group.value)}</div>
                       </div>
                     </button>
-
                     <div style={{ display: "flex", gap: "6px" }}>
-                      <button
-                        onClick={() => handleStartEditGroup(group)}
-                        style={subtleButton}
-                      >
-                        Bearbeiten
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGroup(group.id, group.name)}
-                        style={{
-                          ...subtleButton,
-                          background: "#fee2e2",
-                          color: "#991b1b",
-                        }}
-                      >
-                        Löschen
-                      </button>
+                      <button className="btn sp-btn-subtle" onClick={() => handleStartEditGroup(group)}>Bearbeiten</button>
+                      <button className="btn sp-btn-delete" onClick={() => handleDeleteGroup(group.id, group.name)}>Löschen</button>
                     </div>
                   </div>
                 </div>
@@ -869,23 +529,13 @@ function SelectionPanel({
             })}
           </div>
         ) : (
-          <div
-            style={{
-              ...softCard,
-              padding: "14px",
-              fontSize: "14px",
-              color: "#6b7280",
-            }}
-          >
-            Noch keine Gruppen vorhanden.
-          </div>
+          <div className="soft-card message-text" style={{ padding: "14px" }}>Noch keine Gruppen vorhanden.</div>
         )}
       </div>
 
-      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
-        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>
-          Aktuelle Auswahl
-        </div>
+      {/* Aktuelle Auswahl */}
+      <div className="soft-card" style={{ padding: "16px", marginBottom: "18px" }}>
+        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>Aktuelle Auswahl</div>
 
         <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
           <input
@@ -893,229 +543,89 @@ function SelectionPanel({
             placeholder="PLZ direkt eingeben"
             value={addPlzValue}
             onChange={(e) => setAddPlzValue(e.target.value)}
-            style={{
-              flex: 1,
-              padding: "12px 14px",
-              borderRadius: "14px",
-              border: "1px solid rgba(15,23,42,0.09)",
-              background: "#f8fafc",
-              fontSize: "14px",
-              outline: "none",
-              boxSizing: "border-box",
-            }}
+            className="form-input"
+            style={{ flex: 1, width: "auto" }}
           />
-          <button
-            onClick={handleAddPlz}
-            style={{
-              border: "none",
-              background: "#111827",
-              color: "white",
-              borderRadius: "14px",
-              padding: "12px 14px",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
-          >
-            Hinzufügen
-          </button>
+          <button className="btn sp-btn-action" onClick={handleAddPlz}>Hinzufügen</button>
         </div>
 
-        {addPlzMessage && (
-          <div style={{ marginBottom: "10px", fontSize: "13px", color: "#4b5563" }}>
-            {addPlzMessage}
-          </div>
-        )}
+        {addPlzMessage && <div className="message-text--dark" style={{ marginBottom: "10px" }}>{addPlzMessage}</div>}
 
         <input
           type="text"
           placeholder="Auswahl durchsuchen"
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
-          style={{
-            width: "100%",
-            marginBottom: "10px",
-            padding: "12px 14px",
-            borderRadius: "14px",
-            border: "1px solid rgba(15,23,42,0.09)",
-            background: "#f8fafc",
-            outline: "none",
-            boxSizing: "border-box",
-            fontSize: "14px",
-          }}
+          className="form-input"
+          style={{ marginBottom: "10px" }}
         />
 
         {selectedItems.length > 0 && (
           <button
+            className="btn"
             onClick={clearSelection}
-            style={{
-              width: "100%",
-              marginBottom: "10px",
-              border: "none",
-              background: "#fee2e2",
-              color: "#991b1b",
-              borderRadius: "14px",
-              padding: "11px 12px",
-              cursor: "pointer",
-              fontWeight: 700,
-            }}
+            style={{ width: "100%", marginBottom: "10px", background: "#fee2e2", color: "#991b1b", borderRadius: "14px", padding: "11px 12px" }}
           >
             Auswahl leeren
           </button>
         )}
 
         {filteredItems.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "260px", overflowY: "auto" }}>
+          <div className="scroll-list" style={{ maxHeight: "260px" }}>
             {filteredItems.map((item) => {
               const postcode = String(item?.plz || "").trim();
               const assignment = assignmentByPostcode[postcode];
-              const assignedGroup = assignment
-                ? groupById[assignment.group_id]
-                : null;
+              const assignedGroup = assignment ? groupById[assignment.group_id] : null;
 
               return (
                 <div
                   key={item.plz}
-                  style={{
-                    padding: "12px",
-                    borderRadius: "16px",
-                    background: "#f8fafc",
-                    border: "1px solid rgba(15,23,42,0.06)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "10px",
-                  }}
+                  style={{ padding: "12px", borderRadius: "16px", background: "#f8fafc", border: "1px solid rgba(15,23,42,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{item.plz}</div>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        color: "#6b7280",
-                        marginTop: "2px",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
+                    <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.name}
                     </div>
-
                     {assignedGroup && (
-                      <div
-                        style={{
-                          marginTop: "6px",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "4px 8px",
-                          borderRadius: "999px",
-                          background: "#ffffff",
-                          border: "1px solid rgba(15,23,42,0.08)",
-                          fontSize: "12px",
-                          color: "#374151",
-                        }}
-                      >
-                        <span
-                          style={{
-                            width: "10px",
-                            height: "10px",
-                            borderRadius: "999px",
-                            background: assignedGroup.color,
-                            display: "inline-block",
-                            border: "1px solid rgba(15,23,42,0.12)",
-                          }}
-                        />
+                      <div style={{ marginTop: "6px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "4px 8px", borderRadius: "999px", background: "#ffffff", border: "1px solid rgba(15,23,42,0.08)", fontSize: "12px", color: "#374151" }}>
+                        <span style={{ width: "10px", height: "10px", borderRadius: "999px", background: assignedGroup.color, display: "inline-block", border: "1px solid rgba(15,23,42,0.12)" }} />
                         {assignedGroup.name}
                       </div>
                     )}
                   </div>
-
-                  <button
-                    onClick={() => removePlz?.(item.plz)}
-                    style={{
-                      border: "none",
-                      background: "#e5e7eb",
-                      color: "#111827",
-                      borderRadius: "12px",
-                      padding: "8px 10px",
-                      cursor: "pointer",
-                      flexShrink: 0,
-                      fontWeight: 600,
-                    }}
-                  >
-                    Entfernen
-                  </button>
+                  <button className="btn sp-btn-remove" onClick={() => removePlz?.(item.plz)}>Entfernen</button>
                 </div>
               );
             })}
           </div>
         ) : (
-          <div
-            style={{
-              ...softCard,
-              padding: "14px",
-              fontSize: "14px",
-              color: "#6b7280",
-            }}
-          >
-            {selectedItems.length === 0
-              ? "Noch keine PLZ ausgewählt."
-              : "Keine Treffer in der aktuellen Auswahl."}
+          <div className="soft-card message-text" style={{ padding: "14px" }}>
+            {selectedItems.length === 0 ? "Noch keine PLZ ausgewählt." : "Keine Treffer in der aktuellen Auswahl."}
           </div>
         )}
       </div>
 
-      <div style={{ ...softCard, padding: "16px", marginBottom: "18px" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "10px",
-            marginBottom: "12px",
-          }}
-        >
+      {/* Zuweisungen */}
+      <div className="soft-card" style={{ padding: "16px", marginBottom: "18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: "15px" }}>Zuweisungen</div>
-            <div style={{ fontSize: "12px", color: "#6b7280" }}>
-              Bestehende Gebietszuweisungen im aktiven Bereich
-            </div>
+            <div style={{ fontSize: "12px", color: "#6b7280" }}>Bestehende Gebietszuweisungen im aktiven Bereich</div>
           </div>
-
-          <button onClick={handleExportAssignments} style={subtleButton}>
-            Export
-          </button>
+          <button className="btn sp-btn-subtle" onClick={handleExportAssignments}>Export</button>
         </div>
 
         <div style={{ marginBottom: "12px" }}>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            style={{ marginBottom: "10px", width: "100%" }}
-          />
-
+          <input type="file" accept=".csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} style={{ marginBottom: "10px", width: "100%" }} />
           <button
+            className="btn sp-btn-import"
             onClick={handleImportAssignments}
-            style={{
-              width: "100%",
-              border: "none",
-              background: "#111827",
-              color: "white",
-              borderRadius: "14px",
-              padding: "11px 12px",
-              cursor: "pointer",
-              fontWeight: 700,
-              marginBottom: importMessage ? "10px" : "0",
-            }}
+            style={{ marginBottom: importMessage ? "10px" : "0" }}
           >
             Import
           </button>
-
-          {importMessage && (
-            <div style={{ fontSize: "13px", color: "#4b5563" }}>{importMessage}</div>
-          )}
+          {importMessage && <div className="message-text--dark">{importMessage}</div>}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
@@ -1124,157 +634,64 @@ function SelectionPanel({
             placeholder="Zuweisungen durchsuchen"
             value={assignmentSearchValue}
             onChange={(e) => setAssignmentSearchValue(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: "14px",
-              border: "1px solid rgba(15,23,42,0.09)",
-              background: "#f8fafc",
-              outline: "none",
-              boxSizing: "border-box",
-              fontSize: "14px",
-            }}
+            className="form-input"
           />
-
           <select
             value={assignmentGroupFilter}
             onChange={(e) => setAssignmentGroupFilter(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: "14px",
-              border: "1px solid rgba(15,23,42,0.09)",
-              background: "#f8fafc",
-              fontSize: "14px",
-            }}
+            className="form-select"
           >
             <option value="">Alle Gruppen</option>
             {sortedGroups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
+              <option key={group.id} value={group.id}>{group.name}</option>
             ))}
           </select>
         </div>
 
         {filteredAssignmentListItems.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "340px", overflowY: "auto" }}>
+          <div className="scroll-list" style={{ maxHeight: "340px" }}>
             {filteredAssignmentListItems.map((item) => (
               <div
                 key={item.postcode}
-                style={{
-                  padding: "12px",
-                  borderRadius: "16px",
-                  background: "#f8fafc",
-                  border: "1px solid rgba(15,23,42,0.06)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "10px",
-                }}
+                style={{ padding: "12px", borderRadius: "16px", background: "#f8fafc", border: "1px solid rgba(15,23,42,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px" }}
               >
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700 }}>{item.postcode}</div>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      color: "#6b7280",
-                      marginTop: "2px",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
+                  <div style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {item.name}
                   </div>
-
-                  <div
-                    style={{
-                      marginTop: "6px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "4px 8px",
-                      borderRadius: "999px",
-                      background: "#ffffff",
-                      border: "1px solid rgba(15,23,42,0.08)",
-                      fontSize: "12px",
-                      color: "#374151",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "10px",
-                        height: "10px",
-                        borderRadius: "999px",
-                        background: item.groupColor,
-                        display: "inline-block",
-                        border: "1px solid rgba(15,23,42,0.12)",
-                      }}
-                    />
+                  <div style={{ marginTop: "6px", display: "inline-flex", alignItems: "center", gap: "8px", padding: "4px 8px", borderRadius: "999px", background: "#ffffff", border: "1px solid rgba(15,23,42,0.08)", fontSize: "12px", color: "#374151" }}>
+                    <span style={{ width: "10px", height: "10px", borderRadius: "999px", background: item.groupColor, display: "inline-block", border: "1px solid rgba(15,23,42,0.12)" }} />
                     {item.groupName}
-                    {item.groupValue !== null && item.groupValue !== undefined
-                      ? ` (${item.groupValue})`
-                      : ""}
+                    {item.groupValue !== null && item.groupValue !== undefined ? ` (${item.groupValue})` : ""}
                   </div>
                 </div>
-
-                <button
-                  onClick={() => handleRemoveAssignment(item.postcode)}
-                  style={{
-                    border: "none",
-                    background: "#fee2e2",
-                    color: "#991b1b",
-                    borderRadius: "12px",
-                    padding: "8px 10px",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
+                <button className="btn sp-btn-remove-danger" onClick={() => handleRemoveAssignment(item.postcode)}>
                   Entfernen
                 </button>
               </div>
             ))}
           </div>
         ) : (
-          <div
-            style={{
-              ...softCard,
-              padding: "14px",
-              fontSize: "14px",
-              color: "#6b7280",
-            }}
-          >
+          <div className="soft-card message-text" style={{ padding: "14px" }}>
             Noch keine Zuweisungen im aktuellen Produktbereich vorhanden.
           </div>
         )}
       </div>
 
-      <div style={{ ...softCard, padding: "16px" }}>
-        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>
-          Karte
-        </div>
+      {/* Karte */}
+      <div className="soft-card" style={{ padding: "16px" }}>
+        <div style={{ fontWeight: 700, fontSize: "15px", marginBottom: "10px" }}>Karte</div>
 
         <div style={{ marginBottom: "10px" }}>
           <select
             value={selectedBundesland}
             onChange={(e) => setSelectedBundesland?.(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              borderRadius: "14px",
-              border: "1px solid rgba(15,23,42,0.09)",
-              background: "#f8fafc",
-              fontSize: "14px",
-            }}
+            className="form-select"
           >
             <option value="">Alle Bundesländer</option>
             {bundeslaender.map((bundesland) => (
-              <option key={bundesland} value={bundesland}>
-                {bundesland}
-              </option>
+              <option key={bundesland} value={bundesland}>{bundesland}</option>
             ))}
           </select>
         </div>
@@ -1284,15 +701,12 @@ function SelectionPanel({
             <button
               key={limit}
               onClick={() => setGeoFeatureLimit?.(limit)}
+              className="btn sp-btn-subtle"
               style={{
-                border: "none",
                 background: geoFeatureLimit === limit ? "#111827" : "#eef2f7",
                 color: geoFeatureLimit === limit ? "white" : "#111827",
                 borderRadius: "999px",
                 padding: "9px 12px",
-                cursor: "pointer",
-                fontWeight: 700,
-                fontSize: "12px",
               }}
             >
               {limit}

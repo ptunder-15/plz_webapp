@@ -20,224 +20,37 @@ def check_database_connection():
         return result.scalar()
 
 
-def table_exists(connection, table_name: str) -> bool:
-    return bool(connection.execute(text("""
-        SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_name = :table_name
-        )
-    """), {"table_name": table_name}).scalar())
-
-
-def get_table_columns(connection, table_name: str):
-    return connection.execute(text("""
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = :table_name
-    """), {"table_name": table_name}).scalars().all()
-
-
-def sync_serial_sequence(connection, table_name: str, id_column: str = "id"):
-    connection.execute(text(f"""
-        SELECT setval(
-            pg_get_serial_sequence('{table_name}', '{id_column}'),
-            COALESCE((SELECT MAX({id_column}) FROM {table_name}), 1),
-            true
-        )
-    """))
-
-
-def initialize_database():
+def seed_default_data():
+    """Legt Standard-Tab und Standard-Gruppen an, falls die DB frisch und leer ist."""
     with engine.begin() as connection:
-        # 1. TABS: Create table without UNIQUE constraint on name, add user_email
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS tabs (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                user_email VARCHAR(255) NOT NULL DEFAULT 'lokal@entwickler.de'
-            )
-        """))
-
-        # 2. TABS MIGRATION: Add user_email if missing and drop unique constraint
-        tabs_columns = get_table_columns(connection, "tabs")
-        if "user_email" not in tabs_columns:
-            connection.execute(text("ALTER TABLE tabs ADD COLUMN user_email VARCHAR(255) NOT NULL DEFAULT 'lokal@entwickler.de'"))
-            # We drop the unique constraint so multiple users can have a tab with the same name
-            connection.execute(text("ALTER TABLE tabs DROP CONSTRAINT IF EXISTS tabs_name_key"))
-
         existing_tabs_count = connection.execute(
             text("SELECT COUNT(*) FROM tabs")
         ).scalar()
 
-        if existing_tabs_count == 0:
-            connection.execute(
-                text("""
-                    INSERT INTO tabs (name, sort_order, user_email)
-                    VALUES ('Heizöl', 1, 'lokal@entwickler.de')
-                """)
-            )
+        if existing_tabs_count > 0:
+            return
+
+        connection.execute(
+            text("""
+                INSERT INTO tabs (name, sort_order, user_email)
+                VALUES ('Heizöl', 1, 'lokal@entwickler.de')
+            """)
+        )
 
         default_tab_id = connection.execute(
             text("SELECT id FROM tabs ORDER BY sort_order, id LIMIT 1")
         ).scalar()
 
-        groups_exists = table_exists(connection, "groups")
-        groups_new_exists = table_exists(connection, "groups_new")
-
-        if not groups_exists and not groups_new_exists:
-            connection.execute(text("""
-                CREATE TABLE groups (
-                    id SERIAL PRIMARY KEY,
-                    tab_id INTEGER NOT NULL REFERENCES tabs(id) ON DELETE CASCADE,
-                    name VARCHAR(100) NOT NULL,
-                    color VARCHAR(20) NOT NULL,
-                    value NUMERIC(10, 2) NULL
-                )
-            """))
-        elif not groups_exists and groups_new_exists:
-            connection.execute(text("ALTER TABLE groups_new RENAME TO groups"))
-        elif groups_exists:
-            group_columns = get_table_columns(connection, "groups")
-            has_tab_id = "tab_id" in group_columns
-            has_value = "value" in group_columns
-
-            if not has_tab_id or not has_value:
-                if not groups_new_exists:
-                    connection.execute(text("""
-                        CREATE TABLE groups_new (
-                            id SERIAL PRIMARY KEY,
-                            tab_id INTEGER NOT NULL REFERENCES tabs(id) ON DELETE CASCADE,
-                            name VARCHAR(100) NOT NULL,
-                            color VARCHAR(20) NOT NULL,
-                            value NUMERIC(10, 2) NULL
-                        )
-                    """))
-
-                existing_new_groups_count = connection.execute(
-                    text("SELECT COUNT(*) FROM groups_new")
-                ).scalar()
-
-                if existing_new_groups_count == 0:
-                    old_rows = connection.execute(text("""
-                        SELECT id, name, color
-                        FROM groups
-                        ORDER BY id
-                    """)).mappings().all()
-
-                    for row in old_rows:
-                        connection.execute(
-                            text("""
-                                INSERT INTO groups_new (id, tab_id, name, color, value)
-                                VALUES (:id, :tab_id, :name, :color, :value)
-                            """),
-                            {
-                                "id": row["id"],
-                                "tab_id": default_tab_id,
-                                "name": row["name"],
-                                "color": row["color"],
-                                "value": None,
-                            },
-                        )
-
-                connection.execute(text("DROP TABLE groups"))
-                connection.execute(text("ALTER TABLE groups_new RENAME TO groups"))
-
-        groups_value_is_not_null = connection.execute(text("""
-            SELECT is_nullable
-            FROM information_schema.columns
-            WHERE table_name = 'groups'
-              AND column_name = 'value'
-        """)).scalar()
-
-        if groups_value_is_not_null == "NO":
-            connection.execute(text("""
-                ALTER TABLE groups
-                ALTER COLUMN value DROP NOT NULL
-            """))
-
-        assignments_exists = table_exists(connection, "postcode_assignments")
-        assignments_new_exists = table_exists(connection, "postcode_assignments_new")
-
-        if not assignments_exists and not assignments_new_exists:
-            connection.execute(text("""
-                CREATE TABLE postcode_assignments (
-                    tab_id INTEGER NOT NULL REFERENCES tabs(id) ON DELETE CASCADE,
-                    postcode VARCHAR(5) NOT NULL,
-                    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-                    PRIMARY KEY (tab_id, postcode)
-                )
-            """))
-        elif not assignments_exists and assignments_new_exists:
-            connection.execute(text("ALTER TABLE postcode_assignments_new RENAME TO postcode_assignments"))
-        elif assignments_exists:
-            assignment_columns = get_table_columns(connection, "postcode_assignments")
-            has_tab_id = "tab_id" in assignment_columns
-
-            if not has_tab_id:
-                if not assignments_new_exists:
-                    connection.execute(text("""
-                        CREATE TABLE postcode_assignments_new (
-                            tab_id INTEGER NOT NULL REFERENCES tabs(id) ON DELETE CASCADE,
-                            postcode VARCHAR(5) NOT NULL,
-                            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-                            PRIMARY KEY (tab_id, postcode)
-                        )
-                    """))
-
-                existing_new_assignments_count = connection.execute(
-                    text("SELECT COUNT(*) FROM postcode_assignments_new")
-                ).scalar()
-
-                if existing_new_assignments_count == 0:
-                    old_rows = connection.execute(text("""
-                        SELECT postcode, group_id
-                        FROM postcode_assignments
-                        ORDER BY postcode
-                    """)).mappings().all()
-
-                    for row in old_rows:
-                        connection.execute(
-                            text("""
-                                INSERT INTO postcode_assignments_new (tab_id, postcode, group_id)
-                                VALUES (:tab_id, :postcode, :group_id)
-                            """),
-                            {
-                                "tab_id": default_tab_id,
-                                "postcode": row["postcode"],
-                                "group_id": row["group_id"],
-                            },
-                        )
-
-                connection.execute(text("DROP TABLE postcode_assignments"))
-                connection.execute(text("ALTER TABLE postcode_assignments_new RENAME TO postcode_assignments"))
-
-        connection.execute(text("""
-            CREATE TABLE IF NOT EXISTS postcode_values (
-                postcode VARCHAR(5) PRIMARY KEY,
-                value NUMERIC(10, 2) NOT NULL
-            )
-        """))
-
-        existing_groups_count = connection.execute(
-            text("SELECT COUNT(*) FROM groups")
-        ).scalar()
-
-        if existing_groups_count == 0:
-            connection.execute(
-                text("""
-                    INSERT INTO groups (tab_id, name, color, value)
-                    VALUES
-                        (:tab_id, 'Gruppe A', '#2563eb', NULL),
-                        (:tab_id, 'Gruppe B', '#dc2626', NULL),
-                        (:tab_id, 'Gruppe C', '#16a34a', NULL)
-                """),
-                {"tab_id": default_tab_id},
-            )
-
-        sync_serial_sequence(connection, "tabs")
-        sync_serial_sequence(connection, "groups")
+        connection.execute(
+            text("""
+                INSERT INTO groups (tab_id, name, color, value)
+                VALUES
+                    (:tab_id, 'Gruppe A', '#2563eb', NULL),
+                    (:tab_id, 'Gruppe B', '#dc2626', NULL),
+                    (:tab_id, 'Gruppe C', '#16a34a', NULL)
+            """),
+            {"tab_id": default_tab_id},
+        )
 
 
 def fetch_tabs_from_db(user_email: Optional[str] = None):
@@ -503,42 +316,42 @@ def fetch_assignments_export_rows_from_db(tab_id: Optional[int] = None, user_ema
         return output
 
 
-def fetch_postcode_values_from_db():
+def fetch_postcode_values_from_db(user_email: Optional[str] = None):
     with engine.connect() as connection:
-        result = connection.execute(
-            text("""
-                SELECT postcode, value
-                FROM postcode_values
-                ORDER BY postcode
-            """)
-        )
+        query_str = "SELECT postcode, value FROM postcode_values"
+        params: dict = {}
+
+        if user_email:
+            query_str += " WHERE user_email = :user_email"
+            params["user_email"] = user_email
+
+        query_str += " ORDER BY postcode"
+
+        result = connection.execute(text(query_str), params)
         rows = result.mappings().all()
 
-        output = []
-        for row in rows:
-            output.append({
-                "postcode": row["postcode"],
-                "value": float(row["value"]),
-            })
-        return output
+        return [{"postcode": row["postcode"], "value": float(row["value"])} for row in rows]
 
 
 def upsert_assignments_in_db(tab_id: int, group_id: int, postcodes: List[str]):
+    if not postcodes:
+        return
+
+    placeholders = []
+    params: dict = {"tab_id": tab_id, "group_id": group_id}
+    for i, postcode in enumerate(postcodes):
+        placeholders.append(f"(:tab_id, :p{i}, :group_id)")
+        params[f"p{i}"] = postcode
+
+    query = text(f"""
+        INSERT INTO postcode_assignments (tab_id, postcode, group_id)
+        VALUES {", ".join(placeholders)}
+        ON CONFLICT (tab_id, postcode)
+        DO UPDATE SET group_id = EXCLUDED.group_id
+    """)
+
     with engine.begin() as connection:
-        for postcode in postcodes:
-            connection.execute(
-                text("""
-                    INSERT INTO postcode_assignments (tab_id, postcode, group_id)
-                    VALUES (:tab_id, :postcode, :group_id)
-                    ON CONFLICT (tab_id, postcode)
-                    DO UPDATE SET group_id = EXCLUDED.group_id
-                """),
-                {
-                    "tab_id": tab_id,
-                    "postcode": postcode,
-                    "group_id": group_id,
-                },
-            )
+        connection.execute(query, params)
 
 
 def delete_assignments_in_db(tab_id: int, postcodes: List[str]):
@@ -564,29 +377,34 @@ def delete_assignments_in_db(tab_id: int, postcodes: List[str]):
         return result.rowcount or 0
 
 
-def upsert_postcode_values_in_db(rows: List[dict]):
+def upsert_postcode_values_in_db(rows: List[dict], user_email: str):
+    if not rows:
+        return
+
+    placeholders = []
+    params: dict = {"user_email": user_email}
+    for i, row in enumerate(rows):
+        placeholders.append(f"(:user_email, :postcode_{i}, :value_{i})")
+        params[f"postcode_{i}"] = row["postcode"]
+        params[f"value_{i}"] = row["value"]
+
+    query = text(f"""
+        INSERT INTO postcode_values (user_email, postcode, value)
+        VALUES {", ".join(placeholders)}
+        ON CONFLICT (user_email, postcode)
+        DO UPDATE SET value = EXCLUDED.value
+    """)
+
     with engine.begin() as connection:
-        for row in rows:
-            connection.execute(
-                text("""
-                    INSERT INTO postcode_values (postcode, value)
-                    VALUES (:postcode, :value)
-                    ON CONFLICT (postcode)
-                    DO UPDATE SET value = EXCLUDED.value
-                """),
-                {
-                    "postcode": row["postcode"],
-                    "value": row["value"],
-                },
-            )
+        connection.execute(query, params)
 
 
-def delete_postcode_values_in_db(postcodes: List[str]):
+def delete_postcode_values_in_db(postcodes: List[str], user_email: str):
     if not postcodes:
         return 0
 
     placeholders = []
-    parameters = {}
+    parameters: dict = {"user_email": user_email}
 
     for index, postcode in enumerate(postcodes):
         key = f"postcode_{index}"
@@ -595,7 +413,8 @@ def delete_postcode_values_in_db(postcodes: List[str]):
 
     query = text(f"""
         DELETE FROM postcode_values
-        WHERE postcode IN ({", ".join(placeholders)})
+        WHERE user_email = :user_email
+          AND postcode IN ({", ".join(placeholders)})
     """)
 
     with engine.begin() as connection:

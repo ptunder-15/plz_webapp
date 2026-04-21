@@ -1,11 +1,13 @@
+from contextlib import asynccontextmanager
 from typing import Optional
 import os
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.assignments import router as assignments_router
+from api.auth import get_current_user
 from api.groups import router as groups_router
 from api.markers import router as markers_router
 from api.tabs import router as tabs_router
@@ -14,12 +16,19 @@ from database import (
     fetch_assignments_from_db,
     fetch_groups_from_db,
     fetch_tabs_from_db,
-    initialize_database,
+    seed_default_data,
 )
 
 load_dotenv()
 
-app = FastAPI(title="PLZ Web App API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    seed_default_data()
+    yield
+
+
+app = FastAPI(title="PLZ Web App API", lifespan=lifespan)
 
 # --- SCHRITT 1 FIX: DIE CORS EINSTELLUNGEN ---
 # Hier listen wir explizit auf, welche Domains zugreifen dürfen.
@@ -39,11 +48,6 @@ app.include_router(markers_router)
 app.include_router(groups_router)
 app.include_router(assignments_router)
 app.include_router(tabs_router)
-
-
-@app.on_event("startup")
-def on_startup():
-    initialize_database()
 
 
 @app.get("/")
@@ -70,15 +74,15 @@ def db_health_check():
 
 
 @app.get("/db/tabs")
-def db_tabs():
-    return fetch_tabs_from_db()
+def db_tabs(user_email: str = Depends(get_current_user)):
+    return fetch_tabs_from_db(user_email=user_email)
 
 
 @app.get("/db/groups")
-def db_groups(tab_id: Optional[int] = None):
-    return fetch_groups_from_db(tab_id=tab_id)
+def db_groups(tab_id: Optional[int] = None, user_email: str = Depends(get_current_user)):
+    return fetch_groups_from_db(tab_id=tab_id, user_email=user_email)
 
 
 @app.get("/db/assignments")
-def db_assignments(tab_id: Optional[int] = None):
-    return fetch_assignments_from_db(tab_id=tab_id)
+def db_assignments(tab_id: Optional[int] = None, user_email: str = Depends(get_current_user)):
+    return fetch_assignments_from_db(tab_id=tab_id, user_email=user_email)

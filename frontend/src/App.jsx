@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import SelectionPanel from "./SelectionPanel";
 import Layout from "./Layout";
 import MapSection from "./MapSection";
-import LandingPage from "./LandingPage"; 
+import LandingPage from "./LandingPage";
 import { AppProvider, useAppContext } from "./AppContext";
 import { createTab, deleteTab, updateTab } from "./api";
 
@@ -160,51 +160,9 @@ function AppContent() {
     }
   };
 
-  // Styles für die App-Shell
-  const topShellStyle = {
-    background: "rgba(255,255,255,0.78)",
-    border: "1px solid rgba(15,23,42,0.07)",
-    borderRadius: "32px",
-    boxShadow: "0 16px 42px rgba(15,23,42,0.06)",
-    backdropFilter: "blur(18px)",
-    WebkitBackdropFilter: "blur(18px)",
-  };
-
-  const tabButtonStyle = (isActive) => ({
-    border: "none",
-    background: isActive ? "#1d1d1f" : "transparent",
-    color: isActive ? "white" : "#1d1d1f",
-    borderRadius: "999px",
-    padding: "12px 18px",
-    cursor: "pointer",
-    fontWeight: 700,
-    fontSize: "14px",
-    letterSpacing: "-0.01em",
-    transition: "all 0.16s ease",
-    whiteSpace: "nowrap",
-  });
-
-  const subtleButtonStyle = {
-    border: "none",
-    background: "#f5f5f7",
-    color: "#1d1d1f",
-    borderRadius: "999px",
-    padding: "10px 14px",
-    cursor: "pointer",
-    fontWeight: 600,
-    fontSize: "13px",
-    whiteSpace: "nowrap",
-  };
-
-  const dangerButtonStyle = {
-    ...subtleButtonStyle,
-    background: "#fde8e8",
-    color: "#b42318",
-  };
-
   return (
     <Layout>
-      {/* Header Bereich Dashboard */}
+      {/* Header */}
       <div style={{ marginBottom: "24px", textAlign: "center" }}>
         <div style={{ fontSize: "56px", lineHeight: 0.95, fontWeight: 750, letterSpacing: "-0.04em", color: "#1d1d1f", marginBottom: "10px" }}>
           standardgrid
@@ -215,32 +173,35 @@ function AppContent() {
       </div>
 
       {/* Produktbereiche / Tabs Editor */}
-      <div style={{ ...topShellStyle, padding: "18px 20px", marginBottom: "24px" }}>
+      <div className="shell-card" style={{ padding: "18px 20px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: tabOptions.length > 0 ? "14px" : "0", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: "12px", color: "#86868b", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              Produktbereiche
-            </div>
+            <div className="label-xs" style={{ marginBottom: "4px" }}>Produktbereiche</div>
             <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.03em", color: "#1d1d1f" }}>
               {activeTab?.name || "Kein Bereich gewählt"}
             </div>
           </div>
-          <button onClick={handleStartCreateTab} style={subtleButtonStyle}>Neuer Bereich</button>
+          <button className="btn btn-subtle" onClick={handleStartCreateTab}>Neuer Bereich</button>
         </div>
 
         {isLoadingTabs ? (
-          <div style={{ color: "#86868b", fontSize: "14px" }}>Bereiche werden geladen...</div>
+          <div className="message-text">Bereiche werden geladen...</div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", padding: "8px", borderRadius: "999px", background: "rgba(248,250,252,0.9)", border: "1px solid rgba(15,23,42,0.06)", marginBottom: showTabEditor || tabMessage ? "14px" : "0" }}>
             {tabOptions.map((tab) => {
               const isActive = tab.id === selectedTabId;
               return (
                 <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: isActive ? "4px" : "0", borderRadius: "999px", background: isActive ? "rgba(255,255,255,0.9)" : "transparent", border: isActive ? "1px solid rgba(15,23,42,0.06)" : "1px solid transparent" }}>
-                  <button onClick={() => setSelectedTabId(tab.id)} style={tabButtonStyle(isActive)}>{tab.name}</button>
+                  <button
+                    onClick={() => setSelectedTabId(tab.id)}
+                    className={`btn tab-btn${isActive ? " tab-btn--active" : ""}`}
+                  >
+                    {tab.name}
+                  </button>
                   {isActive && (
                     <>
-                      <button onClick={() => handleStartEditTab(tab)} style={subtleButtonStyle}>Bearbeiten</button>
-                      <button onClick={() => handleDeleteTab(tab.id, tab.name)} style={dangerButtonStyle}>Löschen</button>
+                      <button className="btn btn-subtle" onClick={() => handleStartEditTab(tab)}>Bearbeiten</button>
+                      <button className="btn btn-danger" onClick={() => handleDeleteTab(tab.id, tab.name)}>Löschen</button>
                     </>
                   )}
                 </div>
@@ -251,14 +212,20 @@ function AppContent() {
 
         {showTabEditor && (
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: tabMessage ? "10px" : "0" }}>
-            <input type="text" placeholder="Name des Produktbereichs" value={tabFormName} onChange={(e) => setTabFormName(e.target.value)} style={{ flex: 1, minWidth: "260px", padding: "13px 16px", borderRadius: "18px", border: "1px solid rgba(15,23,42,0.09)", background: "#ffffff", fontSize: "15px", outline: "none" }} />
-            <button onClick={handleSaveTab} style={{ border: "none", background: "#1d1d1f", color: "white", borderRadius: "18px", padding: "13px 18px", cursor: "pointer", fontWeight: 700, fontSize: "14px" }}>
+            <input
+              type="text"
+              placeholder="Name des Produktbereichs"
+              value={tabFormName}
+              onChange={(e) => setTabFormName(e.target.value)}
+              className="tab-input"
+            />
+            <button className="btn tab-save-btn" onClick={handleSaveTab}>
               {editingTabId ? "Speichern" : "Anlegen"}
             </button>
-            <button onClick={resetTabForm} style={{ ...subtleButtonStyle, padding: "13px 16px", borderRadius: "18px" }}>Abbrechen</button>
+            <button className="btn tab-cancel-btn" onClick={resetTabForm}>Abbrechen</button>
           </div>
         )}
-        {tabMessage && <div style={{ fontSize: "13px", color: "#86868b", marginTop: "10px" }}>{tabMessage}</div>}
+        {tabMessage && <div className="message-text" style={{ marginTop: "10px" }}>{tabMessage}</div>}
       </div>
 
       {/* Haupt-Grid: Karte und Panel */}
@@ -302,22 +269,18 @@ function AppContent() {
   );
 }
 
-// DIE HAUPT-WEICHE (App Komponente)
 function App() {
   const hostname = window.location.hostname;
-  
-  // Erkennt automatisch localhost oder die App-Subdomain
-  const isAppDomain = 
-    hostname === "app.standard-grid.com" || 
-    hostname === "localhost" || 
+
+  const isAppDomain =
+    hostname === "app.standard-grid.com" ||
+    hostname === "localhost" ||
     hostname === "127.0.0.1";
 
-  // Wenn nicht auf der App-Domain, zeige Landingpage
   if (!isAppDomain) {
     return <LandingPage />;
   }
 
-  // Ansonsten lade den AppProvider und den Dashboard-Inhalt
   return (
     <AppProvider>
       <AppContent />
