@@ -336,9 +336,10 @@ function AuthGate() {
 
   // URL-Parameter prüfen (invite / reset-password)
   const params = new URLSearchParams(window.location.search);
-  const inviteToken = params.get("invite");
-  const resetToken = params.get("token");
+  const isInvitePage = window.location.pathname === "/invite";
   const isResetPage = window.location.pathname === "/reset-password";
+  const inviteToken = isInvitePage ? params.get("token") : null;
+  const resetToken = isResetPage ? params.get("token") : null;
 
   useEffect(() => {
     // Auf localhost ist man immer eingeloggt (Dev-Bypass)
