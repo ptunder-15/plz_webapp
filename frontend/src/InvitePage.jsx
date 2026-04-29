@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getInviteInfo, acceptInvite, resetPassword } from "./api";
 
 const ROLE_LABELS = {
@@ -15,6 +15,8 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const successDataRef = useRef(null);
 
   useEffect(() => {
     if (mode === "invite" && token) {
@@ -26,6 +28,7 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading || success) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -35,7 +38,10 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
       } else {
         data = await resetPassword(token, password, passwordConfirm);
       }
-      onSuccess(data);
+      successDataRef.current = data;
+      setSuccess(true);
+      // Short delay so the user sees the success state before the page transitions
+      setTimeout(() => onSuccess(data), 1200);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -104,13 +110,19 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
             required
           />
           {error && <p className="auth-error">{error}</p>}
-          <button type="submit" className="btn auth-submit-btn" disabled={isLoading}>
-            {isLoading
-              ? "Speichern…"
-              : mode === "invite"
-              ? "Einladung annehmen & loslegen"
-              : "Passwort speichern"}
-          </button>
+          {success ? (
+            <div className="auth-success">
+              ✓ {mode === "invite" ? "Konto erstellt – du wirst weitergeleitet…" : "Passwort gespeichert – du wirst weitergeleitet…"}
+            </div>
+          ) : (
+            <button type="submit" className="btn auth-submit-btn" disabled={isLoading}>
+              {isLoading
+                ? "Speichern…"
+                : mode === "invite"
+                ? "Einladung annehmen & loslegen"
+                : "Passwort speichern"}
+            </button>
+          )}
         </form>
       </div>
     </div>

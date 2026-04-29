@@ -179,6 +179,18 @@ def accept_invite(payload: AcceptInviteRequest, response: Response):
         raise HTTPException(status_code=404, detail="Einladungslink nicht gefunden.")
 
     if invite["used_at"] is not None:
+        # Token already used — check if the user already registered successfully.
+        # If so, just log them in (makes the endpoint idempotent for double-clicks / dialog interruptions).
+        email = invite["email"]
+        existing_user = get_user_by_email(email)
+        if existing_user and verify_password(payload.password, existing_user["password_hash"]):
+            _set_session_cookie(response, email)
+            teams = get_teams_for_user_in_db(email)
+            return {
+                "message": "Willkommen zurück!",
+                "email": email,
+                "teams": teams,
+            }
         raise HTTPException(
             status_code=400,
             detail="Dieser Einladungslink wurde bereits verwendet. Bitte einen neuen Link anfordern.",
