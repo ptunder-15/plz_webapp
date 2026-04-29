@@ -90,18 +90,18 @@
   display: flex;
   align-items: center;
   gap: 1px;
-  padding-right: 4px;
+  padding-right: 5px;
 }
 
 .tab-action-btn {
   background: transparent;
   border: none;
-  border-radius: 999px;
-  width: 28px;
-  height: 28px;
+  border-radius: 8px;
+  width: 26px;
+  height: 26px;
   font-size: 13px;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
+  color: #6b7280;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -109,13 +109,17 @@
 }
 
 .tab-action-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: rgba(15, 23, 42, 0.07);
+  color: #1d1d1f;
+}
+
+.tab-action-btn--danger {
+  color: #9ca3af;
 }
 
 .tab-action-btn--danger:hover {
-  background: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 .tab-new-btn {
@@ -395,6 +399,76 @@
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+}
+
+/* ─── Group list ──────────────────────────────────────────────────────────── */
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1.5px solid transparent;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.14s ease;
+  text-align: left;
+}
+
+.group-row:hover {
+  background: #f0f4f8;
+}
+
+.group-row--active {
+  background: #fff;
+  border-color: var(--gc, #1d1d1f);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+}
+
+.group-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: box-shadow 0.14s;
+}
+
+.group-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-value {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.group-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--gc, #6b7280);
+  border-radius: 999px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+  min-width: 22px;
+  text-align: center;
 }
 
 /* ─── Team UI ─────────────────────────────────────────────────────────────── */

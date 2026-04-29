@@ -385,53 +385,45 @@ function SelectionPanel({
         </div>
 
         {sortedGroups.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
+          <div className="group-list">
             {sortedGroups.map((group) => {
               const isActive = selectedGroupId === group.id;
+              const count = assignments.filter((a) => a.group_id === group.id).length;
               return (
                 <button
                   key={group.id}
                   onClick={() => setSelectedGroupId?.(group.id)}
-                  className="btn"
-                  style={{
-                    border: isActive ? "2px solid rgba(15,23,42,0.9)" : "1px solid rgba(15,23,42,0.08)",
-                    background: isActive
-                      ? `linear-gradient(180deg, ${group.color}22 0%, ${group.color}10 100%)`
-                      : "#ffffff",
-                    borderRadius: "18px",
-                    padding: "12px",
-                    boxShadow: isActive ? `0 10px 24px ${group.color}22` : "0 4px 12px rgba(15,23,42,0.04)",
-                    transition: "all 0.16s ease",
-                  }}
+                  className={`group-row${isActive ? " group-row--active" : ""}`}
+                  style={{ "--gc": group.color }}
                 >
-                  <div style={{ width: "100%", height: "10px", borderRadius: "999px", background: group.color, marginBottom: "10px" }} />
-                  <div style={{ textAlign: "left", fontWeight: 700, fontSize: "14px", color: "#111827", marginBottom: "4px" }}>
-                    {group.name}
-                  </div>
-                  <div style={{ textAlign: "left", fontSize: "12px", color: "#6b7280" }}>
-                    {renderGroupValueText(group.value)}
-                  </div>
+                  <span
+                    className="group-dot"
+                    style={{ background: group.color, boxShadow: isActive ? `0 0 0 3px ${group.color}33` : "none" }}
+                  />
+                  <span className="group-name">{group.name}</span>
+                  {group.value != null && (
+                    <span className="group-value">{renderGroupValueText(group.value)}</span>
+                  )}
+                  <span className="group-count">{count}</span>
                 </button>
               );
             })}
           </div>
         ) : (
-          <div className="soft-card message-text" style={{ padding: "14px", marginBottom: "12px" }}>
+          <div className="message-text" style={{ padding: "10px 0 8px", color: "#9ca3af" }}>
             Noch keine Gruppen vorhanden.
           </div>
         )}
 
-        <div className="soft-card" style={{ padding: "12px 14px", marginBottom: "12px", background: "#f8fafc" }}>
+        <div style={{ marginBottom: "12px", minHeight: "28px", display: "flex", alignItems: "center", gap: "8px" }}>
           {selectedGroup ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
-              <div style={{ width: "16px", height: "16px", borderRadius: "6px", background: selectedGroup.color, border: "1px solid rgba(15,23,42,0.12)", flexShrink: 0 }} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: "14px" }}>Aktiv: {selectedGroup.name}</div>
-                <div style={{ fontSize: "12px", color: "#6b7280" }}>Wert: {renderGroupValueText(selectedGroup.value)}</div>
-              </div>
-            </div>
+            <>
+              <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: selectedGroup.color, flexShrink: 0 }} />
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "#374151" }}>{selectedGroup.name}</span>
+              <span style={{ fontSize: "12px", color: "#9ca3af" }}>aktiv — Klick auf Karte oder PLZ-Feld zuweisen</span>
+            </>
           ) : (
-            <div style={{ fontSize: "13px", color: "#6b7280" }}>Wähle eine Gruppe direkt über die Farbkarten aus.</div>
+            <span style={{ fontSize: "12px", color: "#9ca3af" }}>Wähle eine Gruppe oben aus, dann PLZ zuweisen.</span>
           )}
         </div>
 
