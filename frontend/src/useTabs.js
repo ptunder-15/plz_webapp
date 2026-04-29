@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchTabs } from "./api";
 
-function useTabs() {
+function useTabs(teamId) {
   const [tabs, setTabs] = useState([]);
-  const [isLoadingTabs, setIsLoadingTabs] = useState(true);
+  const [isLoadingTabs, setIsLoadingTabs] = useState(false);
 
   const reloadTabs = useCallback(async () => {
+    if (!teamId) return [];
     setIsLoadingTabs(true);
-
     try {
-      const data = await fetchTabs();
+      const data = await fetchTabs(teamId);
       setTabs(data);
       return data;
     } catch (error) {
@@ -18,38 +18,26 @@ function useTabs() {
     } finally {
       setIsLoadingTabs(false);
     }
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadTabs() {
-      try {
-        const data = await fetchTabs();
-        if (isMounted) {
-          setTabs(data);
-        }
-      } catch (error) {
-        console.error("Fehler beim Laden der Tabs:", error);
-      } finally {
-        if (isMounted) {
-          setIsLoadingTabs(false);
-        }
-      }
+    if (!teamId) {
+      setTabs([]);
+      return;
     }
 
-    loadTabs();
+    let isMounted = true;
+    setIsLoadingTabs(true);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    fetchTabs(teamId)
+      .then((data) => { if (isMounted) setTabs(data); })
+      .catch((error) => console.error("Fehler beim Laden der Tabs:", error))
+      .finally(() => { if (isMounted) setIsLoadingTabs(false); });
 
-  return {
-    tabs,
-    isLoadingTabs,
-    reloadTabs,
-  };
+    return () => { isMounted = false; };
+  }, [teamId]);
+
+  return { tabs, isLoadingTabs, reloadTabs };
 }
 
 export default useTabs;

@@ -1,13 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
 
-# NEU: Wir importieren unseren Türsteher aus der auth.py im gleichen Ordner
-from .auth import get_current_user
-
+from .auth import get_current_user, verify_team_access, verify_tab_team_access
 from database import (
     create_tab_in_db,
     delete_tab_in_db,
     fetch_tabs_from_db,
+    get_team_id_for_tab,
     update_tab_in_db,
 )
 
@@ -16,6 +15,7 @@ router = APIRouter(prefix="/tabs", tags=["tabs"])
 
 class TabCreateRequest(BaseModel):
     name: str
+    team_id: int
 
 
 class TabUpdateRequest(BaseModel):
@@ -26,115 +26,111 @@ def validate_tab_name(name: str) -> str:
     normalized = str(name).strip()
 
     if not normalized:
-      raise HTTPException(
-          status_code=400,
-          detail="Der Tab-Name darf nicht leer sein."
-      )
+        raise HTTPException(status_code=400, detail="Der Tab-Name darf nicht leer sein.")
 
     if len(normalized) > 100:
-      raise HTTPException(
-          status_code=400,
-          detail="Der Tab-Name ist zu lang."
-      )
+        raise HTTPException(status_code=400, detail="Der Tab-Name ist zu lang.")
 
     return normalized
 
 
 @router.get("/")
-def get_tabs(user_email: str = Depends(get_current_user)):
-    # Gibt nur die Tabs des aktuell eingeloggten Nutzers zurück
-    return fetch_tabs_from_db(user_email=user_email)
+def get_tabs(
+    team_id: int = Query(...),
+    user_email: str = Depends(get_current_user),
+):
+    verify_team_access(team_id, user_email, min_role="viewer")
+    return fetch_tabs_from_db(team_id=team_id)
 
 
 @router.post("/")
-def create_tab(payload: TabCreateRequest, user_email: str = Depends(get_current_user)):
+def create_tab(
+    payload: TabCreateRequest,
+    user_email: str = Depends(get_current_user),
+):
+    verify_team_access(payload.team_id, user_email, min_role="editor")
     normalized_name = validate_tab_name(payload.name)
 
     try:
-        # Reicht die E-Mail an die Datenbank weiter
-        created_tab = create_tab_in_db(normalized_name, user_email=user_email)
+        created_tab = create_tab_in_db(normalized_name, team_id=payload.team_id)
     except Exception as error:
         error_message = str(error).lower()
-
         if "unique" in error_message or "duplicate" in error_message:
             raise HTTPException(
                 status_code=400,
-                detail="Ein Tab mit diesem Namen existiert bereits."
+                detail="Ein Tab mit diesem Namen existiert bereits.",
             )
-
         raise
 
     return {
         "message": "Tab wurde angelegt.",
         "tab": created_tab,
-        "tabs": fetch_tabs_from_db(user_email=user_email),
+        "tabs": fetch_tabs_from_db(team_id=payload.team_id),
     }
 
 
 @router.patch("/{tab_id}")
-def update_tab(tab_id: int, payload: TabUpdateRequest, user_email: str = Depends(get_current_user)):
+def update_tab(
+    tab_id: int,
+    payload: TabUpdateRequest,
+    user_email: str = Depends(get_current_user),
+):
+    team_id = get_team_id_for_tab(tab_id)
+    if team_id is None:
+        raise HTTPException(status_code=404, detail="Tab nicht gefunden.")
+
+    verify_team_access(team_id, user_email, min_role="editor")
     normalized_name = validate_tab_name(payload.name)
 
     try:
-        # Aktualisiert nur, wenn der Tab auch diesem Nutzer gehört
-        updated_tab = update_tab_in_db(tab_id, normalized_name, user_email=user_email)
+        updated_tab = update_tab_in_db(tab_id, normalized_name, team_id=team_id)
     except Exception as error:
         error_message = str(error).lower()
-
         if "unique" in error_message or "duplicate" in error_message:
             raise HTTPException(
                 status_code=400,
-                detail="Ein Tab mit diesem Namen existiert bereits."
+                detail="Ein Tab mit diesem Namen existiert bereits.",
             )
-
         raise
 
     if not updated_tab:
-        raise HTTPException(
-            status_code=404,
-            detail="Tab wurde nicht gefunden oder gehört dir nicht."
-        )
+        raise HTTPException(status_code=404, detail="Tab wurde nicht gefunden.")
 
     return {
         "message": "Tab wurde aktualisiert.",
         "tab": updated_tab,
-        "tabs": fetch_tabs_from_db(user_email=user_email),
+        "tabs": fetch_tabs_from_db(team_id=team_id),
     }
 
 
 @router.delete("/{tab_id}")
-def delete_tab(tab_id: int, user_email: str = Depends(get_current_user)):
-    # Holt nur die Tabs DIESES Nutzers, um zu prüfen, ob es sein letzter ist
-    existing_tabs = fetch_tabs_from_db(user_email=user_email)
+def delete_tab(
+    tab_id: int,
+    user_email: str = Depends(get_current_user),
+):
+    team_id = get_team_id_for_tab(tab_id)
+    if team_id is None:
+        raise HTTPException(status_code=404, detail="Tab nicht gefunden.")
+
+    verify_team_access(team_id, user_email, min_role="editor")
+
+    existing_tabs = fetch_tabs_from_db(team_id=team_id)
 
     if len(existing_tabs) <= 1:
         raise HTTPException(
             status_code=400,
-            detail="Der letzte verbleibende Tab kann nicht gelöscht werden."
+            detail="Der letzte verbleibende Tab kann nicht gelöscht werden.",
         )
 
-    existing_tab = None
-    for tab in existing_tabs:
-        if tab["id"] == tab_id:
-            existing_tab = tab
-            break
+    if not any(t["id"] == tab_id for t in existing_tabs):
+        raise HTTPException(status_code=404, detail="Tab nicht gefunden.")
 
-    if not existing_tab:
-        raise HTTPException(
-            status_code=404,
-            detail="Tab wurde nicht gefunden oder gehört dir nicht."
-        )
-
-    # Löscht den Tab unter Berücksichtigung der E-Mail
-    removed_count = delete_tab_in_db(tab_id, user_email=user_email)
+    removed_count = delete_tab_in_db(tab_id, team_id=team_id)
 
     if removed_count == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="Tab wurde nicht gefunden."
-        )
+        raise HTTPException(status_code=404, detail="Tab wurde nicht gefunden.")
 
     return {
         "message": "Tab wurde gelöscht.",
-        "tabs": fetch_tabs_from_db(user_email=user_email),
+        "tabs": fetch_tabs_from_db(team_id=team_id),
     }

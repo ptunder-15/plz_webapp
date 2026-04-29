@@ -1,106 +1,107 @@
-import json
 import os
-import time
-import urllib.request
+import secrets
+from datetime import datetime, timedelta, timezone
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, Request
 
-CF_ACCESS_TEAM_DOMAIN = os.getenv("CF_ACCESS_TEAM_DOMAIN", "")
-CF_ACCESS_AUD = os.getenv("CF_ACCESS_AUD", "")
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production-please")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRE_DAYS = 30
 
-_jwks_cache: dict = {"keys": {}, "fetched_at": 0.0}
-_JWKS_TTL = 3600  # Public Keys stündlich neu laden
+ROLE_HIERARCHY = {"viewer": 0, "editor": 1, "admin": 2}
+
+DEV_EMAIL = "admin@standard-grid.com"
 
 
-def _fetch_cloudflare_public_keys() -> dict:
-    """Lädt Cloudflare's öffentliche JWKS-Schlüssel und cached sie."""
-    now = time.time()
-    if _jwks_cache["keys"] and now - _jwks_cache["fetched_at"] < _JWKS_TTL:
-        return _jwks_cache["keys"]
+# ── Passwort-Hashing ──────────────────────────────────────────────────────────
 
-    url = f"https://{CF_ACCESS_TEAM_DOMAIN}/cdn-cgi/access/certs"
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            jwks = json.loads(resp.read().decode())
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Cloudflare JWKS-Schlüssel konnten nicht geladen werden: {e}",
-        )
-
-    keys = {}
-    for key_data in jwks.get("keys", []):
-        kid = key_data.get("kid")
-        if kid:
-            keys[kid] = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
-
-    _jwks_cache["keys"] = keys
-    _jwks_cache["fetched_at"] = now
-    return keys
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
 
 
-def _verify_cf_jwt(token: str) -> str:
-    """Verifiziert ein Cloudflare Access JWT und gibt die E-Mail zurück."""
-    if not CF_ACCESS_TEAM_DOMAIN or not CF_ACCESS_AUD:
-        raise HTTPException(
-            status_code=500,
-            detail="CF_ACCESS_TEAM_DOMAIN und CF_ACCESS_AUD müssen in .env gesetzt sein.",
-        )
+# ── JWT ───────────────────────────────────────────────────────────────────────
 
+def create_session_token(email: str) -> str:
+    payload = {
+        "sub": email,
+        "exp": datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRE_DAYS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_session_token(token: str) -> str:
+    """Gibt die E-Mail zurück oder wirft HTTPException."""
     try:
-        header = jwt.get_unverified_header(token)
-        kid = header.get("kid")
-
-        public_keys = _fetch_cloudflare_public_keys()
-        public_key = public_keys.get(kid)
-
-        if not public_key:
-            # Keys könnten rotiert worden sein — Cache zurücksetzen
-            _jwks_cache["fetched_at"] = 0.0
-            public_keys = _fetch_cloudflare_public_keys()
-            public_key = public_keys.get(kid)
-
-        if not public_key:
-            raise HTTPException(status_code=401, detail="Unbekannter JWT Key ID.")
-
-        payload = jwt.decode(
-            token,
-            public_key,
-            algorithms=["RS256"],
-            audience=CF_ACCESS_AUD,
-        )
-
-        email = payload.get("email")
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        email = payload.get("sub")
         if not email:
-            raise HTTPException(status_code=401, detail="Kein E-Mail-Feld im JWT-Token.")
-
+            raise HTTPException(status_code=401, detail="Ungültiger Token.")
         return email
-
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="JWT-Token ist abgelaufen.")
-    except jwt.InvalidAudienceError:
-        raise HTTPException(status_code=401, detail="JWT-Token hat falsche Audience (AUD).")
-    except jwt.InvalidTokenError as e:
-        raise HTTPException(status_code=401, detail=f"Ungültiges JWT-Token: {e}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"JWT-Verifikation fehlgeschlagen: {e}")
+        raise HTTPException(status_code=401, detail="Session abgelaufen. Bitte neu einloggen.")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Ungültiger Token.")
 
+
+# ── Einladungs- und Reset-Tokens ──────────────────────────────────────────────
+
+def generate_secure_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def get_invite_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=7)
+
+
+def get_reset_expiry() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(hours=2)
+
+
+# ── FastAPI Dependency ────────────────────────────────────────────────────────
 
 def get_current_user(request: Request) -> str:
-    # Lokale Entwicklung: Auth-Bypass für localhost
     host = request.headers.get("host", "")
     if "localhost" in host or "127.0.0.1" in host:
-        return "admin@standard-grid.com"
+        return DEV_EMAIL
 
-    # JWT verifizieren (einziger erlaubter Weg in Produktion)
-    jwt_token = request.headers.get("cf-access-jwt-assertion")
-    if jwt_token:
-        return _verify_cf_jwt(jwt_token)
+    token = request.cookies.get("session")
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Nicht eingeloggt. Bitte anmelden.",
+        )
+    return decode_session_token(token)
 
-    raise HTTPException(
-        status_code=401,
-        detail="Zugriff verweigert. Kein gültiges Cloudflare-Token gefunden.",
-    )
+
+# ── Team-Zugriff ──────────────────────────────────────────────────────────────
+
+def verify_team_access(team_id: int, user_email: str, min_role: str = "viewer") -> str:
+    from database import get_user_role_in_team
+
+    role = get_user_role_in_team(team_id, user_email)
+    if role is None:
+        raise HTTPException(status_code=403, detail="Du bist kein Mitglied dieses Teams.")
+    if ROLE_HIERARCHY.get(role, -1) < ROLE_HIERARCHY.get(min_role, 0):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Für diese Aktion wird mindestens die Rolle '{min_role}' benötigt.",
+        )
+    return role
+
+
+def verify_tab_team_access(tab_id: int, user_email: str, min_role: str = "editor") -> str:
+    from database import get_team_id_for_tab
+
+    team_id = get_team_id_for_tab(tab_id)
+    if team_id is None:
+        raise HTTPException(status_code=404, detail="Tab nicht gefunden.")
+    return verify_team_access(team_id, user_email, min_role)

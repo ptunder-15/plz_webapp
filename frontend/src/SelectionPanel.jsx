@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   assignPostcodesToGroup,
+  assignValueToPostcodes,
   createGroup,
   deleteAssignmentsByPostcodes,
   deleteGroup,
   getAssignmentsExportUrl,
   importAssignmentsCsv,
+  importPostcodeValuesFile,
   updateGroup,
 } from "./api";
 
@@ -24,13 +26,18 @@ function SelectionPanel({
   activeFilterLabel = "Alle Bundesländer",
   groups = [],
   assignments = [],
+  postcodeValues = [],
   selectedGroupId = null,
   setSelectedGroupId,
   reloadAssignments,
   reloadGroups,
+  reloadPostcodeValues,
   selectedTabId = null,
   activeTabName = "",
+  selectedTeamId = null,
+  userRole = null,
 }) {
+  const canEdit = userRole === "admin" || userRole === "editor";
   const [searchValue, setSearchValue] = useState("");
   const [addPlzValue, setAddPlzValue] = useState("");
   const [addPlzMessage, setAddPlzMessage] = useState("");
@@ -429,18 +436,24 @@ function SelectionPanel({
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
-          <button
-            className="btn sp-btn-dark"
-            onClick={handleAssignToGroup}
-            style={{ boxShadow: selectedGroup ? `0 10px 22px ${selectedGroup.color}33` : "0 10px 20px rgba(17,24,39,0.18)" }}
-          >
-            Auswahl dieser Gruppe zuweisen
-          </button>
-          <button className="btn sp-btn-muted" onClick={handleRemoveSelectedAssignments}>
-            Auswahl aus bestehender Gruppe entfernen
-          </button>
-        </div>
+        {canEdit ? (
+          <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
+            <button
+              className="btn sp-btn-dark"
+              onClick={handleAssignToGroup}
+              style={{ boxShadow: selectedGroup ? `0 10px 22px ${selectedGroup.color}33` : "0 10px 20px rgba(17,24,39,0.18)" }}
+            >
+              Auswahl dieser Gruppe zuweisen
+            </button>
+            <button className="btn sp-btn-muted" onClick={handleRemoveSelectedAssignments}>
+              Auswahl aus bestehender Gruppe entfernen
+            </button>
+          </div>
+        ) : (
+          <div className="soft-card message-text" style={{ padding: "10px 12px" }}>
+            Als Betrachter kannst du keine Zuweisungen vornehmen.
+          </div>
+        )}
 
         {assignmentMessage && (
           <div className="message-text--dark" style={{ marginTop: "10px" }}>{assignmentMessage}</div>
@@ -454,7 +467,9 @@ function SelectionPanel({
             <div style={{ fontWeight: 700, fontSize: "15px" }}>Gruppen</div>
             <div style={{ fontSize: "12px", color: "#6b7280" }}>Farben, Namen und Werte verwalten</div>
           </div>
-          <button className="btn sp-btn-subtle" onClick={handleStartCreateGroup}>Neue Gruppe</button>
+          {canEdit && (
+            <button className="btn sp-btn-subtle" onClick={handleStartCreateGroup}>Neue Gruppe</button>
+          )}
         </div>
 
         {showGroupEditor && (
@@ -519,10 +534,12 @@ function SelectionPanel({
                         <div style={{ fontSize: "12px", color: "#6b7280" }}>{renderGroupValueText(group.value)}</div>
                       </div>
                     </button>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button className="btn sp-btn-subtle" onClick={() => handleStartEditGroup(group)}>Bearbeiten</button>
-                      <button className="btn sp-btn-delete" onClick={() => handleDeleteGroup(group.id, group.name)}>Löschen</button>
-                    </div>
+                    {canEdit && (
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <button className="btn sp-btn-subtle" onClick={() => handleStartEditGroup(group)}>Bearbeiten</button>
+                        <button className="btn sp-btn-delete" onClick={() => handleDeleteGroup(group.id, group.name)}>Löschen</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -616,17 +633,19 @@ function SelectionPanel({
           <button className="btn sp-btn-subtle" onClick={handleExportAssignments}>Export</button>
         </div>
 
-        <div style={{ marginBottom: "12px" }}>
-          <input type="file" accept=".csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} style={{ marginBottom: "10px", width: "100%" }} />
-          <button
-            className="btn sp-btn-import"
-            onClick={handleImportAssignments}
-            style={{ marginBottom: importMessage ? "10px" : "0" }}
-          >
-            Import
-          </button>
-          {importMessage && <div className="message-text--dark">{importMessage}</div>}
-        </div>
+        {canEdit && (
+          <div style={{ marginBottom: "12px" }}>
+            <input type="file" accept=".csv" onChange={(e) => setImportFile(e.target.files?.[0] || null)} style={{ marginBottom: "10px", width: "100%" }} />
+            <button
+              className="btn sp-btn-import"
+              onClick={handleImportAssignments}
+              style={{ marginBottom: importMessage ? "10px" : "0" }}
+            >
+              Import
+            </button>
+            {importMessage && <div className="message-text--dark">{importMessage}</div>}
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px" }}>
           <input
@@ -666,9 +685,11 @@ function SelectionPanel({
                     {item.groupValue !== null && item.groupValue !== undefined ? ` (${item.groupValue})` : ""}
                   </div>
                 </div>
-                <button className="btn sp-btn-remove-danger" onClick={() => handleRemoveAssignment(item.postcode)}>
-                  Entfernen
-                </button>
+                {canEdit && (
+                  <button className="btn sp-btn-remove-danger" onClick={() => handleRemoveAssignment(item.postcode)}>
+                    Entfernen
+                  </button>
+                )}
               </div>
             ))}
           </div>

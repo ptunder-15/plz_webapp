@@ -1,46 +1,35 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchPostcodeValues } from "./api";
 
-function usePostcodeValues() {
+function usePostcodeValues(teamId) {
   const [postcodeValues, setPostcodeValues] = useState([]);
-  const [isLoadingPostcodeValues, setIsLoadingPostcodeValues] = useState(true);
+  const [isLoadingPostcodeValues, setIsLoadingPostcodeValues] = useState(false);
 
   const reloadPostcodeValues = useCallback(async () => {
-    const data = await fetchPostcodeValues();
+    if (!teamId) return [];
+    const data = await fetchPostcodeValues(teamId);
     setPostcodeValues(data);
     return data;
-  }, []);
+  }, [teamId]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadPostcodeValues() {
-      try {
-        const data = await fetchPostcodeValues();
-        if (isMounted) {
-          setPostcodeValues(data);
-        }
-      } catch (error) {
-        console.error("Fehler beim Laden der PLZ-Werte:", error);
-      } finally {
-        if (isMounted) {
-          setIsLoadingPostcodeValues(false);
-        }
-      }
+    if (!teamId) {
+      setPostcodeValues([]);
+      return;
     }
 
-    loadPostcodeValues();
+    let isMounted = true;
+    setIsLoadingPostcodeValues(true);
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    fetchPostcodeValues(teamId)
+      .then((data) => { if (isMounted) setPostcodeValues(data); })
+      .catch((error) => console.error("Fehler beim Laden der PLZ-Werte:", error))
+      .finally(() => { if (isMounted) setIsLoadingPostcodeValues(false); });
 
-  return {
-    postcodeValues,
-    isLoadingPostcodeValues,
-    reloadPostcodeValues,
-  };
+    return () => { isMounted = false; };
+  }, [teamId]);
+
+  return { postcodeValues, isLoadingPostcodeValues, reloadPostcodeValues };
 }
 
 export default usePostcodeValues;

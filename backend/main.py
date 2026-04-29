@@ -8,14 +8,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.assignments import router as assignments_router
 from api.auth import get_current_user
+from api.auth_routes import router as auth_router
 from api.groups import router as groups_router
 from api.markers import router as markers_router
 from api.tabs import router as tabs_router
+from api.teams import router as teams_router
 from database import (
     check_database_connection,
     fetch_assignments_from_db,
     fetch_groups_from_db,
     fetch_tabs_from_db,
+    get_teams_for_user_in_db,
     seed_default_data,
 )
 
@@ -30,24 +33,23 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="PLZ Web App API", lifespan=lifespan)
 
-# --- SCHRITT 1 FIX: DIE CORS EINSTELLUNGEN ---
-# Hier listen wir explizit auf, welche Domains zugreifen dürfen.
-# Weil 'allow_credentials=True' gesetzt ist, darf hier niemals ein "*" vorkommen!
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://app.standard-grid.com",
-        "http://localhost:5173"
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(markers_router)
 app.include_router(groups_router)
 app.include_router(assignments_router)
 app.include_router(tabs_router)
+app.include_router(teams_router)
 
 
 @app.get("/")
@@ -71,6 +73,11 @@ def db_health_check():
             "database": "disconnected",
             "detail": str(error),
         }
+
+
+@app.get("/db/teams")
+def db_teams(user_email: str = Depends(get_current_user)):
+    return get_teams_for_user_in_db(user_email)
 
 
 @app.get("/db/tabs")

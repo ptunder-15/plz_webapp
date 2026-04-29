@@ -10,3 +10,4 @@ python-dotenv
 alembic
 PyJWT
 cryptography
+bcrypt

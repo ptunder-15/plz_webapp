@@ -3,10 +3,13 @@ import SelectionPanel from "./SelectionPanel";
 import Layout from "./Layout";
 import MapSection from "./MapSection";
 import LandingPage from "./LandingPage";
+import LoginPage from "./LoginPage";
+import InvitePage from "./InvitePage";
+import TeamSettings from "./TeamSettings";
 import { AppProvider, useAppContext } from "./AppContext";
-import { createTab, deleteTab, updateTab } from "./api";
+import { createTab, deleteTab, updateTab, getMe, logout } from "./api";
 
-function AppContent() {
+function AppContent({ onLogout }) {
   const {
     selection,
     geoSample,
@@ -26,6 +29,13 @@ function AppContent() {
     selectedTabId,
     setSelectedTabId,
     activeTab,
+    teams,
+    isLoadingTeams,
+    reloadTeams,
+    selectedTeamId,
+    setSelectedTeamId,
+    currentUserRole,
+    activeTeam,
   } = useAppContext();
 
   const {
@@ -42,28 +52,23 @@ function AppContent() {
   const { geoFeatures: geoFeaturesData, isLoadingGeoFeatures } = geoFeatures;
   const { postcodeRecords: postcodeRecordData } = postcodeRecords;
   const { bundeslaender: bundeslandOptions } = bundeslaender;
-  const {
-    tabs: tabOptions,
-    isLoadingTabs,
-    reloadTabs,
-  } = tabs;
-  const {
-    groups: groupOptions,
-    reloadGroups,
-  } = groups;
-  const {
-    assignments: assignmentData,
-    reloadAssignments,
-  } = assignments;
-  const {
-    postcodeValues: postcodeValuesData,
-    reloadPostcodeValues,
-  } = postcodeValues;
+  const { tabs: tabOptions, isLoadingTabs, reloadTabs } = tabs;
+  const { groups: groupOptions, reloadGroups } = groups;
+  const { assignments: assignmentData, reloadAssignments } = assignments;
+  const { postcodeValues: postcodeValuesData, reloadPostcodeValues } = postcodeValues;
 
   const [tabFormName, setTabFormName] = useState("");
   const [tabMessage, setTabMessage] = useState("");
   const [editingTabId, setEditingTabId] = useState(null);
   const [showTabEditor, setShowTabEditor] = useState(false);
+  const [showTeamSettings, setShowTeamSettings] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    onLogout?.();
+  };
+
+  const canEdit = currentUserRole === "admin" || currentUserRole === "editor";
 
   useEffect(() => {
     setTabFormName("");
@@ -103,31 +108,24 @@ function AppContent() {
 
   const handleSaveTab = async () => {
     const normalizedName = tabFormName.trim();
-
     if (!normalizedName) {
       setTabMessage("Bitte einen Namen eingeben.");
       return;
     }
-
     try {
       let result;
       if (editingTabId) {
         result = await updateTab(editingTabId, normalizedName);
       } else {
-        result = await createTab(normalizedName);
+        result = await createTab(normalizedName, selectedTeamId);
       }
-
       const updatedTabs = await reloadTabs?.();
-
       if (!editingTabId && result?.tab?.id) {
         setSelectedTabId(result.tab.id);
       } else if (editingTabId) {
         const stillExists = (updatedTabs || []).some((tab) => tab.id === editingTabId);
-        if (stillExists) {
-          setSelectedTabId(editingTabId);
-        }
+        if (stillExists) setSelectedTabId(editingTabId);
       }
-
       setTabMessage(result.message || "Produktbereich gespeichert.");
       resetTabForm();
     } catch (error) {
@@ -139,21 +137,14 @@ function AppContent() {
     const confirmed = window.confirm(
       `Möchtest du den Produktbereich "${tabName}" wirklich löschen?\n\nAlle Gruppen und Zuweisungen in diesem Bereich gehen verloren.`
     );
-
     if (!confirmed) return;
-
     try {
       const result = await deleteTab(tabId);
       const updatedTabs = await reloadTabs?.();
-
       if (selectedTabId === tabId && updatedTabs?.length) {
         setSelectedTabId(updatedTabs[0].id);
       }
-
-      if (editingTabId === tabId) {
-        resetTabForm();
-      }
-
+      if (editingTabId === tabId) resetTabForm();
       setTabMessage(result.message || "Produktbereich gelöscht.");
     } catch (error) {
       setTabMessage(error.message || "Fehler beim Löschen.");
@@ -163,16 +154,60 @@ function AppContent() {
   return (
     <Layout>
       {/* Header */}
-      <div style={{ marginBottom: "24px", textAlign: "center" }}>
-        <div style={{ fontSize: "56px", lineHeight: 0.95, fontWeight: 750, letterSpacing: "-0.04em", color: "#1d1d1f", marginBottom: "10px" }}>
-          standardgrid
-        </div>
-        <div style={{ fontSize: "18px", color: "#86868b", lineHeight: 1.35 }}>
-          Gebiete auswählen, Gruppen zuweisen und geschützt gemeinsam nutzen.
+      <div style={{ marginBottom: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: "56px", lineHeight: 0.95, fontWeight: 750, letterSpacing: "-0.04em", color: "#1d1d1f", marginBottom: "10px" }}>
+              standardgrid
+            </div>
+            <div style={{ fontSize: "18px", color: "#86868b", lineHeight: 1.35 }}>
+              Gebiete auswählen, Gruppen zuweisen und geschützt gemeinsam nutzen.
+            </div>
+          </div>
+          <button
+            className="btn btn-subtle"
+            onClick={handleLogout}
+            style={{ flexShrink: 0, marginTop: "8px" }}
+            title="Ausloggen"
+          >
+            Abmelden
+          </button>
         </div>
       </div>
 
-      {/* Produktbereiche / Tabs Editor */}
+      {/* Team-Switcher */}
+      <div className="shell-card" style={{ padding: "14px 20px", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+          <div className="label-xs" style={{ marginRight: "4px" }}>Team:</div>
+          {isLoadingTeams ? (
+            <span className="message-text">Laden…</span>
+          ) : (
+            teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeamId(team.id)}
+                className={`btn tab-btn${team.id === selectedTeamId ? " tab-btn--active" : ""}`}
+              >
+                {team.name}
+                {team.id === selectedTeamId && (
+                  <span className="team-role-badge">
+                    {team.role === "admin" ? "Admin" : team.role === "editor" ? "Bearbeiter" : "Betrachter"}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+          <button
+            className="btn btn-subtle"
+            onClick={() => setShowTeamSettings(true)}
+            title="Team-Einstellungen"
+          >
+            ⚙ Team verwalten
+          </button>
+        </div>
+      </div>
+
+      {/* Produktbereiche / Tabs */}
       <div className="shell-card" style={{ padding: "18px 20px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: tabOptions.length > 0 ? "14px" : "0", flexWrap: "wrap" }}>
           <div>
@@ -181,7 +216,9 @@ function AppContent() {
               {activeTab?.name || "Kein Bereich gewählt"}
             </div>
           </div>
-          <button className="btn btn-subtle" onClick={handleStartCreateTab}>Neuer Bereich</button>
+          {canEdit && (
+            <button className="btn btn-subtle" onClick={handleStartCreateTab}>Neuer Bereich</button>
+          )}
         </div>
 
         {isLoadingTabs ? (
@@ -198,7 +235,7 @@ function AppContent() {
                   >
                     {tab.name}
                   </button>
-                  {isActive && (
+                  {isActive && canEdit && (
                     <>
                       <button className="btn btn-subtle" onClick={() => handleStartEditTab(tab)}>Bearbeiten</button>
                       <button className="btn btn-danger" onClick={() => handleDeleteTab(tab.id, tab.name)}>Löschen</button>
@@ -210,7 +247,7 @@ function AppContent() {
           </div>
         )}
 
-        {showTabEditor && (
+        {showTabEditor && canEdit && (
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: tabMessage ? "10px" : "0" }}>
             <input
               type="text"
@@ -263,27 +300,101 @@ function AppContent() {
           reloadGroups={reloadGroups}
           selectedTabId={selectedTabId}
           activeTabName={activeTab?.name || ""}
+          selectedTeamId={selectedTeamId}
+          userRole={currentUserRole}
         />
       </div>
+
+      {showTeamSettings && activeTeam && (
+        <TeamSettings
+          team={activeTeam}
+          onClose={() => setShowTeamSettings(false)}
+          onTeamsChanged={() => {
+            reloadTeams();
+            setShowTeamSettings(false);
+          }}
+        />
+      )}
     </Layout>
   );
 }
 
 function App() {
   const hostname = window.location.hostname;
-
   const isAppDomain =
     hostname === "app.standard-grid.com" ||
     hostname === "localhost" ||
     hostname === "127.0.0.1";
 
-  if (!isAppDomain) {
-    return <LandingPage />;
+  if (!isAppDomain) return <LandingPage />;
+
+  return <AuthGate />;
+}
+
+function AuthGate() {
+  const [authState, setAuthState] = useState("checking"); // "checking" | "loggedIn" | "loggedOut"
+
+  // URL-Parameter prüfen (invite / reset-password)
+  const params = new URLSearchParams(window.location.search);
+  const inviteToken = params.get("invite");
+  const resetToken = params.get("token");
+  const isResetPage = window.location.pathname === "/reset-password";
+
+  useEffect(() => {
+    // Auf localhost ist man immer eingeloggt (Dev-Bypass)
+    const host = window.location.hostname;
+    if (host === "localhost" || host === "127.0.0.1") {
+      setAuthState("loggedIn");
+      return;
+    }
+    getMe().then((user) => {
+      setAuthState(user ? "loggedIn" : "loggedOut");
+    });
+  }, []);
+
+  if (authState === "checking") {
+    return (
+      <div className="auth-page">
+        <div style={{ color: "#86868b", fontSize: "15px" }}>Laden…</div>
+      </div>
+    );
+  }
+
+  // Einladungslink
+  if (inviteToken) {
+    return (
+      <InvitePage
+        token={inviteToken}
+        mode="invite"
+        onSuccess={() => {
+          window.history.replaceState({}, "", "/");
+          setAuthState("loggedIn");
+        }}
+      />
+    );
+  }
+
+  // Passwort-Reset-Link
+  if (isResetPage && resetToken) {
+    return (
+      <InvitePage
+        token={resetToken}
+        mode="reset"
+        onSuccess={() => {
+          window.history.replaceState({}, "", "/");
+          setAuthState("loggedIn");
+        }}
+      />
+    );
+  }
+
+  if (authState === "loggedOut") {
+    return <LoginPage onLogin={() => setAuthState("loggedIn")} />;
   }
 
   return (
     <AppProvider>
-      <AppContent />
+      <AppContent onLogout={() => setAuthState("loggedOut")} />
     </AppProvider>
   );
 }
