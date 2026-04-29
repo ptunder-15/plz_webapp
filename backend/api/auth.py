@@ -12,7 +12,7 @@ JWT_EXPIRE_DAYS = 30
 
 ROLE_HIERARCHY = {"viewer": 0, "editor": 1, "admin": 2}
 
-DEV_EMAIL = "admin@standard-grid.com"
+DEV_EMAIL = "ptunder@keslar.de"
 
 
 # ── Passwort-Hashing ──────────────────────────────────────────────────────────

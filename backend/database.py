@@ -20,7 +20,7 @@ def check_database_connection():
         return result.scalar()
 
 
-DEV_EMAIL = "admin@standard-grid.com"
+DEV_EMAIL = "ptunder@keslar.de"
 
 
 def seed_default_data():
