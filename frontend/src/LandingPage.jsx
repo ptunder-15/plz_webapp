@@ -426,10 +426,16 @@ export default function LandingPage() {
             Verwalte deutschlandweite PLZ-Gebiete direkt auf der Karte – flexibel für jeden Use Case.
           </p>
 
-          <div className={`sg-fade-up sg-delay-3 ${introStage === 2 ? 'visible' : ''}`}>
+          <div className={`sg-fade-up sg-delay-3 ${introStage === 2 ? 'visible' : ''}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
             <a href="https://app.standard-grid.com" className="sg-button">
-              App starten <span style={{ marginLeft: '8px', fontSize: '18px' }}>&rarr;</span>
+              Jetzt kostenlos registrieren <span style={{ marginLeft: '8px', fontSize: '18px' }}>&rarr;</span>
             </a>
+            <span style={{ fontSize: '14px', color: '#888891' }}>
+              Bereits registriert?{' '}
+              <a href="https://app.standard-grid.com" style={{ color: '#0a0a0b', fontWeight: 600, textDecoration: 'none', borderBottom: '1px solid currentColor', paddingBottom: '1px' }}>
+                Login oben rechts →
+              </a>
+            </span>
           </div>
         </section>
 
@@ -452,9 +458,9 @@ export default function LandingPage() {
 
           <div className="sg-feature-card">
             <div className="sg-feature-icon">🔒</div>
-            <h3 className="sg-feature-title">Sicher & Performant</h3>
+            <h3 className="sg-feature-title">Teamzugang & Rollen</h3>
             <p className="sg-feature-desc">
-              Geschützter Zugang via Cloudflare Zero Trust, kombiniert mit einem extrem schnellen Backend.
+              Lade Kollegen gezielt zu einzelnen Tabs ein – mit Bearbeiter- oder Leserechten. Volle Kontrolle, wer was sieht.
             </p>
           </div>
         </section>
