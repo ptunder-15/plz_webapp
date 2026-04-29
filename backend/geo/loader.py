@@ -5,6 +5,8 @@ import os
 from geo.sources import PLZ_GEOJSON_PATH
 from markers_data import demo_markers
 
+PLZ_NAMES_PATH = PLZ_GEOJSON_PATH.parent / "plz_names.json"
+
 def geojson_exists():
     return PLZ_GEOJSON_PATH.exists()
 
@@ -13,6 +15,13 @@ def get_data_mode():
 
 def load_markers():
     return demo_markers
+
+@lru_cache(maxsize=1)
+def load_plz_names():
+    if PLZ_NAMES_PATH.exists():
+        with open(PLZ_NAMES_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
 
 @lru_cache(maxsize=1)
 def load_geojson_gdf():
@@ -24,6 +33,10 @@ def load_geojson_gdf():
             gdf[col] = gdf[col].astype(str).str.zfill(5 if col == "postcode" else 2)
     if "bundesland" in gdf.columns:
         gdf["bundesland"] = gdf["bundesland"].fillna("").astype(str).str.strip()
+    # Enrich with city names
+    plz_names = load_plz_names()
+    if plz_names and "postcode" in gdf.columns:
+        gdf["name"] = gdf["postcode"].map(plz_names).fillna("")
     return gdf
 
 @lru_cache(maxsize=1)
