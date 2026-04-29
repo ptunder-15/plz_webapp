@@ -76,12 +76,21 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
         )}
 
         <form onSubmit={handleSubmit} className="auth-form">
+          {/* Hidden username field so Apple Keychain / browser saves password for the correct account */}
+          <input
+            type="email"
+            autoComplete="username"
+            value={inviteInfo?.email ?? ""}
+            readOnly
+            style={{ display: "none" }}
+          />
           <input
             className="form-input"
             type="password"
             placeholder="Passwort wählen (min. 8 Zeichen)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
             required
             autoFocus
           />
@@ -91,6 +100,7 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
             placeholder="Passwort wiederholen"
             value={passwordConfirm}
             onChange={(e) => setPasswordConfirm(e.target.value)}
+            autoComplete="new-password"
             required
           />
           {error && <p className="auth-error">{error}</p>}
