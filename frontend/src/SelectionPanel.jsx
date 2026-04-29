@@ -34,7 +34,6 @@ function SelectionPanel({
   reloadPostcodeValues,
   selectedTabId = null,
   activeTabName = "",
-  selectedTeamId = null,
   userRole = null,
 }) {
   const canEdit = userRole === "admin" || userRole === "editor";

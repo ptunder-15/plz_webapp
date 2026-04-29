@@ -9,7 +9,6 @@ import useGroups from "./useGroups";
 import useAssignments from "./useAssignments";
 import usePostcodeValues from "./usePostcodeValues";
 import useTabs from "./useTabs";
-import useTeams from "./useTeams";
 
 const AppContext = createContext(null);
 
@@ -18,26 +17,8 @@ export function AppProvider({ children }) {
   const [selectedBundesland, setSelectedBundesland] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [selectedTabId, setSelectedTabId] = useState(null);
-  const [selectedTeamId, setSelectedTeamId] = useState(null);
 
-  const { teams, isLoadingTeams, teamsError, reloadTeams } = useTeams();
-
-  // Erstes Team automatisch auswählen
-  useEffect(() => {
-    if (selectedTeamId === null && teams.length > 0) {
-      setSelectedTeamId(teams[0].id);
-    }
-  }, [teams, selectedTeamId]);
-
-  // Aktuelle Rolle des Nutzers im gewählten Team
-  const currentUserRole = teams.find((t) => t.id === selectedTeamId)?.role ?? null;
-
-  const markers = useMarkers();
-  const geoSample = useGeoSample();
-  const geoFeatures = useGeoFeatures(geoFeatureLimit, selectedBundesland);
-  const bundeslaender = useBundeslaender();
-  const postcodeRecords = usePostcodeRecords(selectedBundesland);
-  const tabs = useTabs(selectedTeamId);
+  const tabs = useTabs();
 
   // Ersten Tab automatisch auswählen sobald Tabs geladen sind
   useEffect(() => {
@@ -46,18 +27,19 @@ export function AppProvider({ children }) {
     }
   }, [tabs.tabs, selectedTabId]);
 
-  // Tab-Auswahl zurücksetzen wenn Team wechselt
-  useEffect(() => {
-    setSelectedTabId(null);
-  }, [selectedTeamId]);
+  // Aktuelle Rolle des Nutzers im gewählten Tab
+  const activeTab = tabs.tabs.find((tab) => tab.id === selectedTabId) || null;
+  const currentUserRole = activeTab?.user_role ?? null;
 
+  const markers = useMarkers();
+  const geoSample = useGeoSample();
+  const geoFeatures = useGeoFeatures(geoFeatureLimit, selectedBundesland);
+  const bundeslaender = useBundeslaender();
+  const postcodeRecords = usePostcodeRecords(selectedBundesland);
   const groups = useGroups(selectedTabId);
   const assignments = useAssignments(selectedTabId);
-  const postcodeValues = usePostcodeValues(selectedTeamId);
+  const postcodeValues = usePostcodeValues(selectedTabId);
   const selection = useSelection(markers.markers, postcodeRecords.postcodeRecords);
-
-  const activeTab = tabs.tabs.find((tab) => tab.id === selectedTabId) || null;
-  const activeTeam = teams.find((t) => t.id === selectedTeamId) || null;
 
   const value = {
     selection,
@@ -79,15 +61,7 @@ export function AppProvider({ children }) {
     selectedTabId,
     setSelectedTabId,
     activeTab,
-    // Team-State
-    teams,
-    isLoadingTeams,
-    teamsError,
-    reloadTeams,
-    selectedTeamId,
-    setSelectedTeamId,
     currentUserRole,
-    activeTeam,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

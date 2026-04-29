@@ -76,6 +76,7 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
             <div className="invite-info-email">{inviteInfo.email}</div>
             <div className="invite-info-meta">
               Eingeladen von <strong>{inviteInfo.invited_by}</strong>
+              {inviteInfo.context_name && <> · Tab: <strong>{inviteInfo.context_name}</strong></>}
               {" · "}Rolle: <strong>{ROLE_LABELS[inviteInfo.role] ?? inviteInfo.role}</strong>
             </div>
           </div>

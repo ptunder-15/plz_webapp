@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from .auth import get_current_user, verify_team_access, verify_tab_team_access
+from .auth import get_current_user, verify_tab_team_access
 from database import (
     delete_assignments_in_db,
     fetch_assignments_export_rows_from_db,
@@ -33,7 +33,7 @@ class AssignmentDeleteRequest(BaseModel):
 
 
 class PostcodeValuesBulkCreateRequest(BaseModel):
-    team_id: int
+    tab_id: int
     value: float
     postcodes: List[str]
 
@@ -103,10 +103,11 @@ def export_assignments_csv(
 
 @router.get("/values")
 def get_postcode_values(
-    team_id: int = Query(...),
+    tab_id: int = Query(...),
     user_email: str = Depends(get_current_user),
 ):
-    verify_team_access(team_id, user_email, min_role="viewer")
+    verify_tab_team_access(tab_id, user_email, min_role="viewer")
+    team_id = get_team_id_for_tab(tab_id)
     return fetch_postcode_values_from_db(team_id=team_id)
 
 
@@ -115,7 +116,8 @@ def create_postcode_values(
     payload: PostcodeValuesBulkCreateRequest,
     user_email: str = Depends(get_current_user),
 ):
-    verify_team_access(payload.team_id, user_email, min_role="editor")
+    verify_tab_team_access(payload.tab_id, user_email, min_role="editor")
+    team_id = get_team_id_for_tab(payload.tab_id)
 
     normalized_postcodes = normalize_postcodes(payload.postcodes)
     if not normalized_postcodes:
@@ -124,11 +126,11 @@ def create_postcode_values(
         )
 
     rows_to_upsert = [{"postcode": p, "value": payload.value} for p in normalized_postcodes]
-    upsert_postcode_values_in_db(rows_to_upsert, team_id=payload.team_id)
+    upsert_postcode_values_in_db(rows_to_upsert, team_id=team_id)
 
     return {
         "message": f"{len(normalized_postcodes)} PLZ-Werte wurden gespeichert.",
-        "values": fetch_postcode_values_from_db(team_id=payload.team_id),
+        "values": fetch_postcode_values_from_db(team_id=team_id),
     }
 
 
@@ -212,10 +214,11 @@ async def import_assignments_csv(
 @router.post("/import-values")
 async def import_postcode_values(
     file: UploadFile = File(...),
-    team_id: int = Query(...),
+    tab_id: int = Query(...),
     user_email: str = Depends(get_current_user),
 ):
-    verify_team_access(team_id, user_email, min_role="editor")
+    verify_tab_team_access(tab_id, user_email, min_role="editor")
+    team_id = get_team_id_for_tab(tab_id)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Bitte eine Datei hochladen.")

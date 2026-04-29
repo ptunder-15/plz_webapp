@@ -99,9 +99,23 @@ def verify_team_access(team_id: int, user_email: str, min_role: str = "viewer") 
 
 
 def verify_tab_team_access(tab_id: int, user_email: str, min_role: str = "editor") -> str:
-    from database import get_team_id_for_tab
+    """Check tab-level access: owner has admin, tab_members have their assigned role."""
+    from database import get_tab_owner, get_user_role_in_tab
 
-    team_id = get_team_id_for_tab(tab_id)
-    if team_id is None:
+    owner = get_tab_owner(tab_id)
+    if owner is None:
         raise HTTPException(status_code=404, detail="Tab nicht gefunden.")
-    return verify_team_access(team_id, user_email, min_role)
+
+    if owner == user_email:
+        role = "admin"
+    else:
+        role = get_user_role_in_tab(tab_id, user_email)
+        if role is None:
+            raise HTTPException(status_code=403, detail="Du hast keinen Zugriff auf diesen Tab.")
+
+    if ROLE_HIERARCHY.get(role, -1) < ROLE_HIERARCHY.get(min_role, 0):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Für diese Aktion wird mindestens die Rolle '{min_role}' benötigt.",
+        )
+    return role

@@ -130,46 +130,16 @@ export async function resetPassword(token, password, passwordConfirm) {
   return data;
 }
 
-// ── Teams ─────────────────────────────────────────────────────────────────────
+// ── Tab Members ───────────────────────────────────────────────────────────────
 
-export async function fetchMyTeams() {
-  const response = await fetch(`${APP_CONFIG.api.baseUrl}/teams/`, fetchOptions);
-  if (!response.ok) throw new Error("Teams konnten nicht geladen werden.");
-  return response.json();
-}
-
-export async function createTeam(name) {
-  const response = await fetch(`${APP_CONFIG.api.baseUrl}/teams/`, {
-    ...fetchOptions,
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || "Team konnte nicht erstellt werden.");
-  return data;
-}
-
-export async function renameTeam(teamId, name) {
-  const response = await fetch(`${APP_CONFIG.api.baseUrl}/teams/${teamId}`, {
-    ...fetchOptions,
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || "Team konnte nicht umbenannt werden.");
-  return data;
-}
-
-export async function fetchTeamMembers(teamId) {
-  const response = await fetch(`${APP_CONFIG.api.baseUrl}/teams/${teamId}/members`, fetchOptions);
+export async function fetchTabMembers(tabId) {
+  const response = await fetch(`${APP_CONFIG.api.baseUrl}/tabs/${tabId}/members`, fetchOptions);
   if (!response.ok) throw new Error("Mitglieder konnten nicht geladen werden.");
   return response.json();
 }
 
-export async function inviteTeamMember(teamId, userEmail, role) {
-  const response = await fetch(`${APP_CONFIG.api.baseUrl}/teams/${teamId}/members`, {
+export async function inviteTabMember(tabId, userEmail, role) {
+  const response = await fetch(`${APP_CONFIG.api.baseUrl}/tabs/${tabId}/members`, {
     ...fetchOptions,
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -180,9 +150,9 @@ export async function inviteTeamMember(teamId, userEmail, role) {
   return data;
 }
 
-export async function updateMemberRole(teamId, memberEmail, role) {
+export async function updateTabMemberRole(tabId, memberEmail, role) {
   const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/teams/${teamId}/members/${encodeURIComponent(memberEmail)}`,
+    `${APP_CONFIG.api.baseUrl}/tabs/${tabId}/members/${encodeURIComponent(memberEmail)}`,
     {
       ...fetchOptions,
       method: "PATCH",
@@ -195,9 +165,9 @@ export async function updateMemberRole(teamId, memberEmail, role) {
   return data;
 }
 
-export async function removeTeamMember(teamId, memberEmail) {
+export async function removeTabMember(tabId, memberEmail) {
   const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/teams/${teamId}/members/${encodeURIComponent(memberEmail)}`,
+    `${APP_CONFIG.api.baseUrl}/tabs/${tabId}/members/${encodeURIComponent(memberEmail)}`,
     { ...fetchOptions, method: "DELETE" }
   );
   const data = await response.json();
@@ -207,21 +177,18 @@ export async function removeTeamMember(teamId, memberEmail) {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-export async function fetchTabs(teamId) {
-  const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/tabs/?team_id=${encodeURIComponent(teamId)}`,
-    fetchOptions
-  );
+export async function fetchTabs() {
+  const response = await fetch(`${APP_CONFIG.api.baseUrl}/tabs/`, fetchOptions);
   if (!response.ok) throw new Error("Tabs konnten nicht geladen werden.");
   return response.json();
 }
 
-export async function createTab(name, teamId) {
+export async function createTab(name) {
   const response = await fetch(`${APP_CONFIG.api.baseUrl}/tabs/`, {
     ...fetchOptions,
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, team_id: teamId }),
+    body: JSON.stringify({ name }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "Tab konnte nicht angelegt werden.");
@@ -310,9 +277,9 @@ export async function fetchAssignments(tabId = null) {
   return response.json();
 }
 
-export async function fetchPostcodeValues(teamId) {
+export async function fetchPostcodeValues(tabId) {
   const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/assignments/values?team_id=${encodeURIComponent(teamId)}`,
+    `${APP_CONFIG.api.baseUrl}/assignments/values?tab_id=${encodeURIComponent(tabId)}`,
     fetchOptions
   );
   if (!response.ok) throw new Error("PLZ-Werte konnten nicht geladen werden.");
@@ -331,12 +298,12 @@ export async function assignPostcodesToGroup(tabId, groupId, postcodes) {
   return data;
 }
 
-export async function assignValueToPostcodes(teamId, value, postcodes) {
+export async function assignValueToPostcodes(tabId, value, postcodes) {
   const response = await fetch(`${APP_CONFIG.api.baseUrl}/assignments/values/bulk`, {
     ...fetchOptions,
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ team_id: teamId, value, postcodes }),
+    body: JSON.stringify({ tab_id: tabId, value, postcodes }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "PLZ-Wert konnte nicht gespeichert werden.");
@@ -374,11 +341,11 @@ export async function importAssignmentsCsv(file, tabId) {
   return data;
 }
 
-export async function importPostcodeValuesFile(file, teamId) {
+export async function importPostcodeValuesFile(file, tabId) {
   const formData = new FormData();
   formData.append("file", file);
   const response = await fetch(
-    `${APP_CONFIG.api.baseUrl}/assignments/import-values?team_id=${encodeURIComponent(teamId)}`,
+    `${APP_CONFIG.api.baseUrl}/assignments/import-values?tab_id=${encodeURIComponent(tabId)}`,
     { ...fetchOptions, method: "POST", body: formData }
   );
   const data = await response.json();

@@ -5,7 +5,7 @@ import MapSection from "./MapSection";
 import LandingPage from "./LandingPage";
 import LoginPage from "./LoginPage";
 import InvitePage from "./InvitePage";
-import TeamSettings from "./TeamSettings";
+import TabMembersModal from "./TabMembersModal";
 import { AppProvider, useAppContext } from "./AppContext";
 import { createTab, deleteTab, updateTab, getMe, logout } from "./api";
 
@@ -29,13 +29,7 @@ function AppContent({ onLogout }) {
     selectedTabId,
     setSelectedTabId,
     activeTab,
-    teams,
-    isLoadingTeams,
-    reloadTeams,
-    selectedTeamId,
-    setSelectedTeamId,
     currentUserRole,
-    activeTeam,
   } = useAppContext();
 
   const {
@@ -61,7 +55,7 @@ function AppContent({ onLogout }) {
   const [tabMessage, setTabMessage] = useState("");
   const [editingTabId, setEditingTabId] = useState(null);
   const [showTabEditor, setShowTabEditor] = useState(false);
-  const [showTeamSettings, setShowTeamSettings] = useState(false);
+  const [showMembersForTabId, setShowMembersForTabId] = useState(null);
 
   const handleLogout = async () => {
     await logout();
@@ -117,7 +111,7 @@ function AppContent({ onLogout }) {
       if (editingTabId) {
         result = await updateTab(editingTabId, normalizedName);
       } else {
-        result = await createTab(normalizedName, selectedTeamId);
+        result = await createTab(normalizedName);
       }
       const updatedTabs = await reloadTabs?.();
       if (!editingTabId && result?.tab?.id) {
@@ -175,38 +169,6 @@ function AppContent({ onLogout }) {
         </div>
       </div>
 
-      {/* Team-Switcher */}
-      <div className="shell-card" style={{ padding: "14px 20px", marginBottom: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <div className="label-xs" style={{ marginRight: "4px" }}>Team:</div>
-          {isLoadingTeams ? (
-            <span className="message-text">Laden…</span>
-          ) : (
-            teams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => setSelectedTeamId(team.id)}
-                className={`btn tab-btn${team.id === selectedTeamId ? " tab-btn--active" : ""}`}
-              >
-                {team.name}
-                {team.id === selectedTeamId && (
-                  <span className="team-role-badge">
-                    {team.role === "admin" ? "Admin" : team.role === "editor" ? "Bearbeiter" : "Betrachter"}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-          <button
-            className="btn btn-subtle"
-            onClick={() => setShowTeamSettings(true)}
-            title="Team-Einstellungen"
-          >
-            ⚙ Team verwalten
-          </button>
-        </div>
-      </div>
-
       {/* Produktbereiche / Tabs */}
       <div className="shell-card" style={{ padding: "18px 20px", marginBottom: "24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: tabOptions.length > 0 ? "14px" : "0", flexWrap: "wrap" }}>
@@ -235,10 +197,20 @@ function AppContent({ onLogout }) {
                   >
                     {tab.name}
                   </button>
-                  {isActive && canEdit && (
+                  {isActive && (
                     <>
-                      <button className="btn btn-subtle" onClick={() => handleStartEditTab(tab)}>Bearbeiten</button>
-                      <button className="btn btn-danger" onClick={() => handleDeleteTab(tab.id, tab.name)}>Löschen</button>
+                      {tab.user_role === "admin" && (
+                        <>
+                          <button className="btn btn-subtle" onClick={() => handleStartEditTab(tab)}>Bearbeiten</button>
+                          <button className="btn btn-subtle" onClick={() => setShowMembersForTabId(tab.id)} title="Zugriff verwalten">👥</button>
+                          <button className="btn btn-danger" onClick={() => handleDeleteTab(tab.id, tab.name)}>Löschen</button>
+                        </>
+                      )}
+                      {tab.user_role !== "admin" && (
+                        <span className="team-role-badge">
+                          {tab.user_role === "editor" ? "Bearbeiter" : "Betrachter"}
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
@@ -300,19 +272,15 @@ function AppContent({ onLogout }) {
           reloadGroups={reloadGroups}
           selectedTabId={selectedTabId}
           activeTabName={activeTab?.name || ""}
-          selectedTeamId={selectedTeamId}
           userRole={currentUserRole}
         />
       </div>
 
-      {showTeamSettings && activeTeam && (
-        <TeamSettings
-          team={activeTeam}
-          onClose={() => setShowTeamSettings(false)}
-          onTeamsChanged={() => {
-            reloadTeams();
-            setShowTeamSettings(false);
-          }}
+      {showMembersForTabId && (
+        <TabMembersModal
+          tab={tabs.tabs.find((t) => t.id === showMembersForTabId)}
+          onClose={() => setShowMembersForTabId(null)}
+          onMembersChanged={() => tabs.reloadTabs()}
         />
       )}
     </Layout>

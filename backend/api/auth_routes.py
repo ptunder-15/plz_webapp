@@ -219,8 +219,17 @@ def accept_invite(payload: AcceptInviteRequest, response: Response):
     else:
         create_user_in_db(email, pw_hash)
 
-    # Team-Mitgliedschaft herstellen (falls Einladung ein Team hat)
-    if invite["team_id"]:
+    # Tab-Mitgliedschaft herstellen (neue tab_id-basierte Einladung)
+    if invite.get("tab_id"):
+        from database import add_tab_member_in_db
+        add_tab_member_in_db(
+            tab_id=invite["tab_id"],
+            user_email=email,
+            role=invite["role"],
+            invited_by=invite["invited_by"],
+        )
+    elif invite.get("team_id"):
+        # Legacy: team-based invite (backward compat)
         add_team_member_in_db(
             team_id=invite["team_id"],
             user_email=email,
@@ -262,10 +271,22 @@ def get_invite_info(token: str):
     if datetime.now(timezone.utc) > expires_at:
         raise HTTPException(status_code=400, detail="Dieser Einladungslink ist abgelaufen.")
 
+    # Get the context name (tab name or team name) for display
+    context_name = None
+    if invite.get("tab_id"):
+        from database import fetch_tabs_from_db, get_tab_owner
+        owner = get_tab_owner(invite["tab_id"])
+        if owner:
+            tabs = fetch_tabs_from_db(owner)
+            tab = next((t for t in tabs if t["id"] == invite["tab_id"]), None)
+            context_name = tab["name"] if tab else None
+
     return {
         "email": invite["email"],
         "role": invite["role"],
         "invited_by": invite["invited_by"],
+        "tab_id": invite.get("tab_id"),
+        "context_name": context_name,
     }
 
 

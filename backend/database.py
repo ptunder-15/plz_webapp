@@ -44,8 +44,8 @@ def seed_default_data():
 
         tab_id = connection.execute(
             text(
-                "INSERT INTO tabs (name, sort_order, team_id) "
-                "VALUES ('Heizöl', 1, :team_id) RETURNING id"
+                "INSERT INTO tabs (name, sort_order, team_id, owner_email) "
+                "VALUES ('Heizöl', 1, :team_id, 'lokal@entwickler.de') RETURNING id"
             ),
             {"team_id": team_id},
         ).scalar()
@@ -114,10 +114,10 @@ def create_team_in_db(name: str, owner_email: str) -> dict:
 
         tab_id = connection.execute(
             text(
-                "INSERT INTO tabs (name, sort_order, team_id) "
-                "VALUES ('Heizöl', 1, :team_id) RETURNING id"
+                "INSERT INTO tabs (name, sort_order, team_id, owner_email) "
+                "VALUES ('Heizöl', 1, :team_id, :owner_email) RETURNING id"
             ),
-            {"team_id": team_id},
+            {"team_id": team_id, "owner_email": owner_email},
         ).scalar()
 
         connection.execute(
@@ -213,83 +213,139 @@ def get_team_id_for_tab(tab_id: int) -> Optional[int]:
         ).scalar()
 
 
+def get_tab_owner(tab_id: int) -> Optional[str]:
+    with engine.connect() as connection:
+        return connection.execute(
+            text("SELECT owner_email FROM tabs WHERE id = :tab_id"),
+            {"tab_id": tab_id},
+        ).scalar()
+
+
+# ── Tab Members ───────────────────────────────────────────────────────────────
+
+def get_user_role_in_tab(tab_id: int, user_email: str) -> Optional[str]:
+    """Returns the role of a non-owner tab member, or None if not a member."""
+    with engine.connect() as connection:
+        return connection.execute(
+            text("SELECT role FROM tab_members WHERE tab_id = :tab_id AND user_email = :user_email"),
+            {"tab_id": tab_id, "user_email": user_email},
+        ).scalar()
+
+
+def get_tab_members_in_db(tab_id: int) -> list:
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT user_email, role, invited_by, joined_at
+                FROM tab_members
+                WHERE tab_id = :tab_id
+                ORDER BY CASE role WHEN 'admin' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, joined_at
+            """),
+            {"tab_id": tab_id},
+        )
+        return [dict(row) for row in result.mappings().all()]
+
+
+def add_tab_member_in_db(tab_id: int, user_email: str, role: str, invited_by: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text("""
+                INSERT INTO tab_members (tab_id, user_email, role, invited_by)
+                VALUES (:tab_id, :user_email, :role, :invited_by)
+                ON CONFLICT (tab_id, user_email) DO UPDATE SET role = EXCLUDED.role
+            """),
+            {"tab_id": tab_id, "user_email": user_email, "role": role, "invited_by": invited_by},
+        )
+
+
+def update_tab_member_role_in_db(tab_id: int, user_email: str, role: str) -> Optional[dict]:
+    with engine.begin() as connection:
+        row = connection.execute(
+            text("""
+                UPDATE tab_members SET role = :role
+                WHERE tab_id = :tab_id AND user_email = :user_email
+                RETURNING user_email, role
+            """),
+            {"tab_id": tab_id, "user_email": user_email, "role": role},
+        ).mappings().first()
+        return dict(row) if row else None
+
+
+def remove_tab_member_in_db(tab_id: int, user_email: str) -> int:
+    with engine.begin() as connection:
+        return connection.execute(
+            text("DELETE FROM tab_members WHERE tab_id = :tab_id AND user_email = :user_email"),
+            {"tab_id": tab_id, "user_email": user_email},
+        ).rowcount or 0
+
+
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-def fetch_tabs_from_db(team_id: Optional[int] = None, user_email: Optional[str] = None) -> list:
+def fetch_tabs_from_db(user_email: str) -> list:
+    """Returns all tabs the user owns or is a member of, with their effective role."""
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("""
+                SELECT
+                    t.id, t.name, t.sort_order, t.owner_email, t.team_id,
+                    CASE
+                        WHEN t.owner_email = :user_email THEN 'admin'
+                        ELSE tm.role
+                    END AS user_role
+                FROM tabs t
+                LEFT JOIN tab_members tm ON t.id = tm.tab_id AND tm.user_email = :user_email
+                WHERE t.owner_email = :user_email OR tm.user_email = :user_email
+                ORDER BY t.sort_order, t.id
+            """),
+            {"user_email": user_email},
+        )
+        return [dict(row) for row in result.mappings().all()]
+
+
+def create_tab_in_db(name: str, owner_email: str) -> dict:
     with engine.begin() as connection:
-        if team_id is not None:
-            result = connection.execute(
-                text(
-                    "SELECT id, name, sort_order, team_id "
-                    "FROM tabs WHERE team_id = :team_id ORDER BY sort_order, id"
-                ),
-                {"team_id": team_id},
-            )
-            return [dict(row) for row in result.mappings().all()]
+        # Get the owner's team_id (for postcode_values scoping)
+        team_id = connection.execute(
+            text("""
+                SELECT t.id FROM teams t
+                JOIN team_members tm ON tm.team_id = t.id
+                WHERE tm.user_email = :email AND tm.role = 'admin'
+                ORDER BY t.created_at LIMIT 1
+            """),
+            {"email": owner_email},
+        ).scalar()
 
-        # Fallback: alle Tabs aller Teams des Nutzers (für Debug-Endpoints)
-        if user_email:
-            result = connection.execute(
-                text("""
-                    SELECT t.id, t.name, t.sort_order, t.team_id
-                    FROM tabs t
-                    JOIN team_members tm ON tm.team_id = t.team_id
-                    WHERE tm.user_email = :user_email
-                    ORDER BY t.sort_order, t.id
-                """),
-                {"user_email": user_email},
-            )
-            return [dict(row) for row in result.mappings().all()]
-
-        return []
-
-
-def create_tab_in_db(name: str, team_id: int) -> dict:
-    with engine.begin() as connection:
         next_sort_order = connection.execute(
-            text(
-                "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tabs "
-                "WHERE team_id = :team_id"
-            ),
-            {"team_id": team_id},
+            text("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tabs WHERE owner_email = :owner_email"),
+            {"owner_email": owner_email},
         ).scalar()
 
         row = connection.execute(
             text("""
-                INSERT INTO tabs (name, sort_order, team_id)
-                VALUES (:name, :sort_order, :team_id)
-                RETURNING id, name, sort_order, team_id
+                INSERT INTO tabs (name, sort_order, team_id, owner_email)
+                VALUES (:name, :sort_order, :team_id, :owner_email)
+                RETURNING id, name, sort_order, team_id, owner_email
             """),
-            {"name": name, "sort_order": next_sort_order, "team_id": team_id},
+            {"name": name, "sort_order": next_sort_order, "team_id": team_id, "owner_email": owner_email},
         ).mappings().first()
         return dict(row)
 
 
-def update_tab_in_db(tab_id: int, name: str, team_id: Optional[int] = None) -> Optional[dict]:
+def update_tab_in_db(tab_id: int, name: str) -> Optional[dict]:
     with engine.begin() as connection:
-        query = "UPDATE tabs SET name = :name WHERE id = :tab_id"
-        params: dict = {"tab_id": tab_id, "name": name}
-
-        if team_id is not None:
-            query += " AND team_id = :team_id"
-            params["team_id"] = team_id
-
-        query += " RETURNING id, name, sort_order, team_id"
-
-        row = connection.execute(text(query), params).mappings().first()
+        row = connection.execute(
+            text("UPDATE tabs SET name = :name WHERE id = :tab_id RETURNING id, name, sort_order, owner_email"),
+            {"tab_id": tab_id, "name": name},
+        ).mappings().first()
         return dict(row) if row else None
 
 
-def delete_tab_in_db(tab_id: int, team_id: Optional[int] = None) -> int:
+def delete_tab_in_db(tab_id: int) -> int:
     with engine.begin() as connection:
-        query = "DELETE FROM tabs WHERE id = :tab_id"
-        params: dict = {"tab_id": tab_id}
-
-        if team_id is not None:
-            query += " AND team_id = :team_id"
-            params["team_id"] = team_id
-
-        return connection.execute(text(query), params).rowcount or 0
+        return connection.execute(
+            text("DELETE FROM tabs WHERE id = :tab_id"),
+            {"tab_id": tab_id},
+        ).rowcount or 0
 
 
 # ── Groups ────────────────────────────────────────────────────────────────────
@@ -609,23 +665,25 @@ def update_user_password_in_db(email: str, password_hash: str) -> None:
 
 def create_invite_token_in_db(
     email: str,
-    team_id: Optional[int],
+    tab_id: Optional[int],
     role: str,
     invited_by: str,
     token: str,
     expires_at,
+    team_id: Optional[int] = None,
 ) -> None:
     with engine.begin() as connection:
         connection.execute(
             text("""
-                INSERT INTO invite_tokens (token, email, team_id, role, invited_by, expires_at)
-                VALUES (:token, :email, :team_id, :role, :invited_by, :expires_at)
+                INSERT INTO invite_tokens (token, email, team_id, tab_id, role, invited_by, expires_at)
+                VALUES (:token, :email, :team_id, :tab_id, :role, :invited_by, :expires_at)
                 ON CONFLICT (token) DO NOTHING
             """),
             {
                 "token": token,
                 "email": email,
                 "team_id": team_id,
+                "tab_id": tab_id,
                 "role": role,
                 "invited_by": invited_by,
                 "expires_at": expires_at,
@@ -637,7 +695,7 @@ def get_invite_token_in_db(token: str) -> Optional[dict]:
     with engine.connect() as connection:
         row = connection.execute(
             text("""
-                SELECT id, token, email, team_id, role, invited_by, expires_at, used_at
+                SELECT id, token, email, team_id, tab_id, role, invited_by, expires_at, used_at
                 FROM invite_tokens
                 WHERE token = :token
             """),

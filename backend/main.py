@@ -11,6 +11,7 @@ from api.auth import get_current_user
 from api.auth_routes import router as auth_router
 from api.groups import router as groups_router
 from api.markers import router as markers_router
+from api.tab_members import router as tab_members_router
 from api.tabs import router as tabs_router
 from api.teams import router as teams_router
 from database import (
@@ -49,6 +50,7 @@ app.include_router(markers_router)
 app.include_router(groups_router)
 app.include_router(assignments_router)
 app.include_router(tabs_router)
+app.include_router(tab_members_router)
 app.include_router(teams_router)
 
 

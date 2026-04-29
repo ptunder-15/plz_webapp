@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchPostcodeValues } from "./api";
 
-function usePostcodeValues(teamId) {
+function usePostcodeValues(tabId) {
   const [postcodeValues, setPostcodeValues] = useState([]);
   const [isLoadingPostcodeValues, setIsLoadingPostcodeValues] = useState(false);
 
   const reloadPostcodeValues = useCallback(async () => {
-    if (!teamId) return [];
-    const data = await fetchPostcodeValues(teamId);
+    if (!tabId) return [];
+    const data = await fetchPostcodeValues(tabId);
     setPostcodeValues(data);
     return data;
-  }, [teamId]);
+  }, [tabId]);
 
   useEffect(() => {
-    if (!teamId) {
+    if (!tabId) {
       setPostcodeValues([]);
       return;
     }
@@ -21,13 +21,13 @@ function usePostcodeValues(teamId) {
     let isMounted = true;
     setIsLoadingPostcodeValues(true);
 
-    fetchPostcodeValues(teamId)
+    fetchPostcodeValues(tabId)
       .then((data) => { if (isMounted) setPostcodeValues(data); })
       .catch((error) => console.error("Fehler beim Laden der PLZ-Werte:", error))
       .finally(() => { if (isMounted) setIsLoadingPostcodeValues(false); });
 
     return () => { isMounted = false; };
-  }, [teamId]);
+  }, [tabId]);
 
   return { postcodeValues, isLoadingPostcodeValues, reloadPostcodeValues };
 }
