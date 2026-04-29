@@ -4,8 +4,8 @@
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     "Helvetica Neue", Arial, sans-serif;
   min-height: 100vh;
-  background: linear-gradient(180deg, #f2f4f7 0%, #eef2f6 100%);
-  padding: 28px;
+  background: #f0f2f5;
+  padding: 24px 28px 40px;
   box-sizing: border-box;
 }
 
@@ -14,22 +14,159 @@
   margin: 0 auto;
 }
 
+/* ─── Top bar ─────────────────────────────────────────────────────────────── */
+
+.app-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 22px;
+  gap: 16px;
+}
+
+.app-topbar-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.app-logo {
+  font-size: 42px;
+  font-weight: 760;
+  letter-spacing: -0.045em;
+  color: #1d1d1f;
+  line-height: 1;
+}
+
+.app-tagline {
+  font-size: 14px;
+  color: #9ca3af;
+  letter-spacing: -0.01em;
+}
+
+.app-logout-btn {
+  margin-bottom: 2px;
+  flex-shrink: 0;
+}
+
+/* ─── Tab bar ─────────────────────────────────────────────────────────────── */
+
+.tab-bar-wrap {
+  margin-bottom: 18px;
+}
+
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tab-item--active {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  padding: 3px 3px 3px 0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.tab-role-chip {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
+.tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+}
+
+.tab-action-btn {
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  font-size: 13px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-action-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.tab-action-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+.tab-new-btn {
+  background: transparent;
+  color: #9ca3af;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1.5px dashed rgba(15, 23, 42, 0.15);
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+
+.tab-new-btn:hover {
+  color: #1d1d1f;
+  border-color: rgba(15, 23, 42, 0.35);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.tab-editor-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.tab-message {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 8px 0 0 4px;
+}
+
 /* ─── Cards ──────────────────────────────────────────────────────────────── */
 
 .shell-card {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(15, 23, 42, 0.07);
-  border-radius: 32px;
-  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.06);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 28px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .soft-card {
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 20px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 /* ─── Buttons (shared base) ──────────────────────────────────────────────── */
@@ -73,15 +210,26 @@
 /* Tab switcher buttons */
 .tab-btn {
   background: transparent;
-  color: #1d1d1f;
+  color: #6b7280;
   border-radius: 999px;
-  padding: 12px 18px;
+  padding: 9px 16px;
   font-size: 14px;
+  font-weight: 600;
   letter-spacing: -0.01em;
-  transition: all 0.16s ease;
+  transition: all 0.15s ease;
+}
+
+.tab-btn:hover {
+  color: #1d1d1f;
+  background: rgba(15, 23, 42, 0.05);
 }
 
 .tab-btn--active {
+  background: #1d1d1f;
+  color: white;
+}
+
+.tab-btn--active:hover {
   background: #1d1d1f;
   color: white;
 }
@@ -194,38 +342,42 @@
 
 .tab-input {
   flex: 1;
-  min-width: 260px;
-  padding: 13px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(15, 23, 42, 0.09);
+  min-width: 200px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
   background: #ffffff;
-  font-size: 15px;
+  font-size: 14px;
   outline: none;
+  font-family: inherit;
 }
 
 .tab-save-btn {
   background: #1d1d1f;
   color: white;
-  border-radius: 18px;
-  padding: 13px 18px;
-  font-size: 14px;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .tab-cancel-btn {
-  background: #f5f5f7;
-  color: #1d1d1f;
-  border-radius: 18px;
-  padding: 13px 16px;
+  background: #f0f2f5;
+  color: #6b7280;
+  border-radius: 14px;
+  padding: 10px 14px;
   font-size: 13px;
+  font-weight: 600;
 }
 
 /* ─── Misc ───────────────────────────────────────────────────────────────── */
 
 .label-xs {
-  font-size: 12px;
-  color: #86868b;
+  font-size: 10.5px;
+  color: #9ca3af;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  font-weight: 600;
 }
 
 .message-text {

@@ -147,86 +147,78 @@ function AppContent({ onLogout }) {
 
   return (
     <Layout>
-      {/* Header */}
-      <div style={{ marginBottom: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div>
-            <div style={{ fontSize: "56px", lineHeight: 0.95, fontWeight: 750, letterSpacing: "-0.04em", color: "#1d1d1f", marginBottom: "10px" }}>
-              standardgrid
-            </div>
-            <div style={{ fontSize: "18px", color: "#86868b", lineHeight: 1.35 }}>
-              Gebiete auswählen, Gruppen zuweisen und geschützt gemeinsam nutzen.
-            </div>
-          </div>
-          <button
-            className="btn btn-subtle"
-            onClick={handleLogout}
-            style={{ flexShrink: 0, marginTop: "8px" }}
-            title="Ausloggen"
-          >
-            Abmelden
-          </button>
+      {/* Top bar */}
+      <div className="app-topbar">
+        <div className="app-topbar-brand">
+          <span className="app-logo">standardgrid</span>
+          <span className="app-tagline">Gebiete auswählen, Gruppen zuweisen und gemeinsam nutzen.</span>
         </div>
+        <button className="btn btn-subtle app-logout-btn" onClick={handleLogout}>Abmelden</button>
       </div>
 
-      {/* Produktbereiche / Tabs */}
-      <div className="shell-card" style={{ padding: "18px 20px", marginBottom: "24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "14px", marginBottom: tabOptions.length > 0 ? "14px" : "0", flexWrap: "wrap" }}>
-          <div>
-            <div className="label-xs" style={{ marginBottom: "4px" }}>Produktbereiche</div>
-            <div style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.03em", color: "#1d1d1f" }}>
-              {activeTab?.name || "Kein Bereich gewählt"}
-            </div>
-          </div>
-          {canEdit && (
-            <button className="btn btn-subtle" onClick={handleStartCreateTab}>Neuer Bereich</button>
-          )}
-        </div>
-
+      {/* Tab bar */}
+      <div className="tab-bar-wrap">
         {isLoadingTabs ? (
-          <div className="message-text">Bereiche werden geladen...</div>
+          <span className="message-text">Laden…</span>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", padding: "8px", borderRadius: "999px", background: "rgba(248,250,252,0.9)", border: "1px solid rgba(15,23,42,0.06)", marginBottom: showTabEditor || tabMessage ? "14px" : "0" }}>
+          <div className="tab-bar">
             {tabOptions.map((tab) => {
               const isActive = tab.id === selectedTabId;
+              const isAdmin = tab.user_role === "admin";
               return (
-                <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: isActive ? "4px" : "0", borderRadius: "999px", background: isActive ? "rgba(255,255,255,0.9)" : "transparent", border: isActive ? "1px solid rgba(15,23,42,0.06)" : "1px solid transparent" }}>
+                <div key={tab.id} className={`tab-item${isActive ? " tab-item--active" : ""}`}>
                   <button
-                    onClick={() => setSelectedTabId(tab.id)}
                     className={`btn tab-btn${isActive ? " tab-btn--active" : ""}`}
+                    onClick={() => setSelectedTabId(tab.id)}
                   >
                     {tab.name}
+                    {isActive && !isAdmin && (
+                      <span className="tab-role-chip">
+                        {tab.user_role === "editor" ? "Bearbeiter" : "Betrachter"}
+                      </span>
+                    )}
                   </button>
-                  {isActive && (
-                    <>
-                      {tab.user_role === "admin" && (
-                        <>
-                          <button className="btn btn-subtle" onClick={() => handleStartEditTab(tab)}>Bearbeiten</button>
-                          <button className="btn btn-subtle" onClick={() => setShowMembersForTabId(tab.id)} title="Zugriff verwalten">👥</button>
-                          <button className="btn btn-danger" onClick={() => handleDeleteTab(tab.id, tab.name)}>Löschen</button>
-                        </>
-                      )}
-                      {tab.user_role !== "admin" && (
-                        <span className="team-role-badge">
-                          {tab.user_role === "editor" ? "Bearbeiter" : "Betrachter"}
-                        </span>
-                      )}
-                    </>
+                  {isActive && isAdmin && (
+                    <div className="tab-actions">
+                      <button
+                        className="tab-action-btn"
+                        onClick={() => handleStartEditTab(tab)}
+                        title="Umbenennen"
+                      >✎</button>
+                      <button
+                        className="tab-action-btn"
+                        onClick={() => setShowMembersForTabId(tab.id)}
+                        title="Zugriff verwalten"
+                      >👥</button>
+                      <button
+                        className="tab-action-btn tab-action-btn--danger"
+                        onClick={() => handleDeleteTab(tab.id, tab.name)}
+                        title="Löschen"
+                      >✕</button>
+                    </div>
                   )}
                 </div>
               );
             })}
+
+            {canEdit && (
+              <button className="btn tab-new-btn" onClick={handleStartCreateTab}>
+                + Neuer Bereich
+              </button>
+            )}
           </div>
         )}
 
         {showTabEditor && canEdit && (
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: tabMessage ? "10px" : "0" }}>
+          <div className="tab-editor-row">
             <input
               type="text"
-              placeholder="Name des Produktbereichs"
+              placeholder={editingTabId ? "Neuer Name…" : "Name des Produktbereichs"}
               value={tabFormName}
               onChange={(e) => setTabFormName(e.target.value)}
               className="tab-input"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleSaveTab(); if (e.key === "Escape") resetTabForm(); }}
             />
             <button className="btn tab-save-btn" onClick={handleSaveTab}>
               {editingTabId ? "Speichern" : "Anlegen"}
@@ -234,11 +226,11 @@ function AppContent({ onLogout }) {
             <button className="btn tab-cancel-btn" onClick={resetTabForm}>Abbrechen</button>
           </div>
         )}
-        {tabMessage && <div className="message-text" style={{ marginTop: "10px" }}>{tabMessage}</div>}
+        {tabMessage && <p className="tab-message">{tabMessage}</p>}
       </div>
 
       {/* Haupt-Grid: Karte und Panel */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "24px", alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px", alignItems: "start" }}>
         <MapSection
           geoFeatures={geoFeaturesData}
           isLoadingGeoFeatures={isLoadingGeoFeatures}
