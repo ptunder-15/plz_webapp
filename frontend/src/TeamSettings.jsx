@@ -28,6 +28,8 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState(null);
   const [inviteUrl, setInviteUrl] = useState(null);
+  const [invitedEmail, setInvitedEmail] = useState(null);
+  const [copied, setCopied] = useState(false);
   const [teamName, setTeamName] = useState(team.name);
   const [isRenamingTeam, setIsRenamingTeam] = useState(false);
   const [renameError, setRenameError] = useState(null);
@@ -63,8 +65,10 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
     try {
       const result = await inviteTeamMember(team.id, email, inviteRole);
       setMembers(result.members);
+      setInvitedEmail(email);
       setInviteEmail("");
       setInviteUrl(result.invite_url || null);
+      setCopied(false);
     } catch (err) {
       setInviteError(err.message);
     } finally {
@@ -238,7 +242,7 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
                 {inviteUrl && (
                   <div className="invite-url-box">
                     <div className="invite-url-label">
-                      ✓ Einladungslink (manuell weiterschicken):
+                      ✓ Einladungslink für <strong>{invitedEmail}</strong> erstellt:
                     </div>
                     <div className="invite-url-row">
                       <input
@@ -250,16 +254,18 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
                       />
                       <button
                         type="button"
-                        className="btn btn-primary"
+                        className={`btn ${copied ? "btn-copied" : "btn-primary"}`}
                         onClick={() => {
                           navigator.clipboard.writeText(inviteUrl);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2500);
                         }}
                       >
-                        Kopieren
+                        {copied ? "✓ Kopiert" : "Kopieren"}
                       </button>
                     </div>
                     <p className="invite-url-hint">
-                      Schick diesen Link per E-Mail oder WhatsApp. Er ist 7 Tage gültig.
+                      Schick diesen Link per WhatsApp oder E-Mail. Er ist 7 Tage gültig und kann nur einmal verwendet werden.
                     </p>
                   </div>
                 )}
