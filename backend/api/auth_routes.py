@@ -153,8 +153,10 @@ def register(payload: RegisterRequest, response: Response):
     pw_hash = hash_password(payload.password)
     create_user_in_db(email, pw_hash)
 
-    # Ersten Nutzer automatisch ein eigenes Team erstellen
-    create_team_in_db("Mein Team", email)
+    # Team erstellen – aber nur wenn der Nutzer noch in keinem Team ist
+    existing_teams = get_teams_for_user_in_db(email)
+    if not existing_teams:
+        create_team_in_db("Mein Team", email)
 
     _set_session_cookie(response, email)
     teams = get_teams_for_user_in_db(email)

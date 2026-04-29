@@ -27,6 +27,7 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
   const [inviteRole, setInviteRole] = useState("editor");
   const [isInviting, setIsInviting] = useState(false);
   const [inviteError, setInviteError] = useState(null);
+  const [inviteUrl, setInviteUrl] = useState(null);
   const [teamName, setTeamName] = useState(team.name);
   const [isRenamingTeam, setIsRenamingTeam] = useState(false);
   const [renameError, setRenameError] = useState(null);
@@ -63,6 +64,7 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
       const result = await inviteTeamMember(team.id, email, inviteRole);
       setMembers(result.members);
       setInviteEmail("");
+      setInviteUrl(result.invite_url || null);
     } catch (err) {
       setInviteError(err.message);
     } finally {
@@ -232,6 +234,36 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
                   </button>
                 </div>
                 {inviteError && <p className="form-error">{inviteError}</p>}
+
+                {inviteUrl && (
+                  <div className="invite-url-box">
+                    <div className="invite-url-label">
+                      ✓ Einladungslink (manuell weiterschicken):
+                    </div>
+                    <div className="invite-url-row">
+                      <input
+                        className="form-input invite-url-input"
+                        type="text"
+                        value={inviteUrl}
+                        readOnly
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(inviteUrl);
+                        }}
+                      >
+                        Kopieren
+                      </button>
+                    </div>
+                    <p className="invite-url-hint">
+                      Schick diesen Link per E-Mail oder WhatsApp. Er ist 7 Tage gültig.
+                    </p>
+                  </div>
+                )}
+
                 <div className="role-hints">
                   {Object.entries(ROLE_DESCRIPTIONS).map(([role, desc]) => (
                     <div key={role} className="role-hint-row">
