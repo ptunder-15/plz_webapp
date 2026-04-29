@@ -179,7 +179,10 @@ def accept_invite(payload: AcceptInviteRequest, response: Response):
         raise HTTPException(status_code=404, detail="Einladungslink nicht gefunden.")
 
     if invite["used_at"] is not None:
-        raise HTTPException(status_code=400, detail="Dieser Einladungslink wurde bereits verwendet.")
+        raise HTTPException(
+            status_code=400,
+            detail="Dieser Einladungslink wurde bereits verwendet. Bitte einen neuen Link anfordern.",
+        )
 
     expires_at = invite["expires_at"]
     from datetime import datetime
@@ -233,7 +236,10 @@ def get_invite_info(token: str):
         raise HTTPException(status_code=404, detail="Einladungslink nicht gefunden.")
 
     if invite["used_at"] is not None:
-        raise HTTPException(status_code=400, detail="Dieser Einladungslink wurde bereits verwendet.")
+        raise HTTPException(
+            status_code=400,
+            detail="Dieser Einladungslink wurde bereits verwendet. Bitte einen neuen Link anfordern.",
+        )
 
     from datetime import datetime
     expires_at = invite["expires_at"]

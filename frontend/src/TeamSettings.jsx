@@ -217,7 +217,12 @@ export default function TeamSettings({ team, onClose, onTeamsChanged }) {
                     type="email"
                     placeholder="email@beispiel.de"
                     value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onChange={(e) => {
+                      setInviteEmail(e.target.value);
+                      setInviteUrl(null);
+                      setInvitedEmail(null);
+                      setCopied(false);
+                    }}
                     required
                   />
                   <select
