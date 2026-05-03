@@ -91,34 +91,51 @@ export default function InvitePage({ token, mode = "invite", onSuccess }) {
             readOnly
             style={{ display: "none" }}
           />
+
+          {mode === "invite" && inviteInfo?.already_registered && (
+            <p className="auth-hint">
+              Du hast bereits einen Account. Bitte melde dich mit deinem Passwort an.
+            </p>
+          )}
+
           <input
             className="form-input"
             type="password"
-            placeholder="Passwort wählen (min. 8 Zeichen)"
+            placeholder={
+              mode === "invite" && inviteInfo?.already_registered
+                ? "Dein Passwort"
+                : "Passwort wählen (min. 8 Zeichen)"
+            }
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
+            autoComplete={mode === "invite" && inviteInfo?.already_registered ? "current-password" : "new-password"}
             required
             autoFocus
           />
-          <input
-            className="form-input"
-            type="password"
-            placeholder="Passwort wiederholen"
-            value={passwordConfirm}
-            onChange={(e) => setPasswordConfirm(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
+
+          {!(mode === "invite" && inviteInfo?.already_registered) && (
+            <input
+              className="form-input"
+              type="password"
+              placeholder="Passwort wiederholen"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+          )}
+
           {error && <p className="auth-error">{error}</p>}
           {success ? (
             <div className="auth-success">
-              ✓ {mode === "invite" ? "Konto erstellt – du wirst weitergeleitet…" : "Passwort gespeichert – du wirst weitergeleitet…"}
+              ✓ {mode === "invite" ? "Willkommen – du wirst weitergeleitet…" : "Passwort gespeichert – du wirst weitergeleitet…"}
             </div>
           ) : (
             <button type="submit" className="btn auth-submit-btn" disabled={isLoading}>
               {isLoading
                 ? "Speichern…"
+                : mode === "invite" && inviteInfo?.already_registered
+                ? "Anmelden & Tab öffnen"
                 : mode === "invite"
                 ? "Einladung annehmen & loslegen"
                 : "Passwort speichern"}

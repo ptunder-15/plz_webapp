@@ -113,10 +113,6 @@ export default function LoginPage({ onLogin }) {
 
         {view === "register" && (
           <form onSubmit={handleRegister} className="auth-form">
-            <p className="auth-hint">
-              Nur möglich, wenn noch kein Account existiert (Erstregistrierung).
-              Danach nur per Einladungslink.
-            </p>
             <input
               className="form-input"
               type="email"

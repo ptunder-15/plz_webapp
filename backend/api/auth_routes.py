@@ -4,6 +4,8 @@ Auth-Routen: Login, Logout, Registrierung, Passwort-Reset, Einladungs-Annahme
 import os
 from datetime import timezone
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 
@@ -64,7 +66,7 @@ class RegisterRequest(BaseModel):
 class AcceptInviteRequest(BaseModel):
     token: str
     password: str
-    password_confirm: str
+    password_confirm: Optional[str] = None
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -134,16 +136,7 @@ def logout(response: Response):
 
 @router.post("/register")
 def register(payload: RegisterRequest, response: Response):
-    """
-    Erste Registrierung: Nur möglich wenn noch kein Nutzer existiert.
-    Danach nur noch per Einladung.
-    """
-    if count_users() > 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Registrierung nur per Einladung möglich. Bitte einen Admin um einen Einladungslink.",
-        )
-
+    """Offene Registrierung: Jeder kann einen Account erstellen."""
     _validate_password(payload.password, payload.password_confirm)
     email = payload.email.strip().lower()
 
@@ -207,17 +200,17 @@ def accept_invite(payload: AcceptInviteRequest, response: Response):
     if now > expires_at:
         raise HTTPException(status_code=400, detail="Dieser Einladungslink ist abgelaufen.")
 
-    _validate_password(payload.password, payload.password_confirm)
     email = invite["email"]
-
-    # Nutzer anlegen oder bestehendem Passwort-Hash aktualisieren
     existing_user = get_user_by_email(email)
-    pw_hash = hash_password(payload.password)
 
     if existing_user:
-        update_user_password_in_db(email, pw_hash)
+        # Bestehender Account: Passwort nur prüfen, nicht überschreiben
+        if not verify_password(payload.password, existing_user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Falsches Passwort.")
     else:
-        create_user_in_db(email, pw_hash)
+        # Neuer Account: Passwörter validieren und User anlegen
+        _validate_password(payload.password, payload.password_confirm or "")
+        create_user_in_db(email, hash_password(payload.password))
 
     # Tab-Mitgliedschaft herstellen (neue tab_id-basierte Einladung)
     if invite.get("tab_id"):
@@ -281,12 +274,15 @@ def get_invite_info(token: str):
             tab = next((t for t in tabs if t["id"] == invite["tab_id"]), None)
             context_name = tab["name"] if tab else None
 
+    existing_user = get_user_by_email(invite["email"])
+
     return {
         "email": invite["email"],
         "role": invite["role"],
         "invited_by": invite["invited_by"],
         "tab_id": invite.get("tab_id"),
         "context_name": context_name,
+        "already_registered": existing_user is not None,
     }
 
 
