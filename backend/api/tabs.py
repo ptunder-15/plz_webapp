@@ -91,13 +91,6 @@ def delete_tab(
     verify_tab_team_access(tab_id, user_email, min_role="admin")
 
     existing_tabs = fetch_tabs_from_db(user_email=user_email)
-    owned_tabs = [t for t in existing_tabs if t["owner_email"] == user_email]
-
-    if len(owned_tabs) <= 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Der letzte eigene Tab kann nicht gelöscht werden.",
-        )
 
     if not any(t["id"] == tab_id for t in existing_tabs):
         raise HTTPException(status_code=404, detail="Tab nicht gefunden.")

@@ -112,25 +112,6 @@ def create_team_in_db(name: str, owner_email: str) -> dict:
             {"team_id": team_id, "email": owner_email},
         )
 
-        tab_id = connection.execute(
-            text(
-                "INSERT INTO tabs (name, sort_order, team_id, owner_email) "
-                "VALUES ('Heizöl', 1, :team_id, :owner_email) RETURNING id"
-            ),
-            {"team_id": team_id, "owner_email": owner_email},
-        ).scalar()
-
-        connection.execute(
-            text("""
-                INSERT INTO groups (tab_id, name, color, value)
-                VALUES
-                    (:tab_id, 'Gruppe A', '#2563eb', NULL),
-                    (:tab_id, 'Gruppe B', '#dc2626', NULL),
-                    (:tab_id, 'Gruppe C', '#16a34a', NULL)
-            """),
-            {"tab_id": tab_id},
-        )
-
         return {"id": team_id, "name": row["name"], "role": "admin", "member_count": 1}
 
 
@@ -314,6 +295,20 @@ def create_tab_in_db(name: str, owner_email: str) -> dict:
             """),
             {"email": owner_email},
         ).scalar()
+
+        # Falls der Nutzer noch kein eigenes Team hat, eines anlegen
+        if team_id is None:
+            team_row = connection.execute(
+                text("INSERT INTO teams (name) VALUES ('Mein Team') RETURNING id"),
+            ).mappings().first()
+            team_id = team_row["id"]
+            connection.execute(
+                text(
+                    "INSERT INTO team_members (team_id, user_email, role) "
+                    "VALUES (:team_id, :email, 'admin')"
+                ),
+                {"team_id": team_id, "email": owner_email},
+            )
 
         next_sort_order = connection.execute(
             text("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM tabs WHERE owner_email = :owner_email"),

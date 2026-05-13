@@ -169,7 +169,7 @@ function AppContent({ onLogout }) {
                 <div key={tab.id} className={`tab-item${isActive ? " tab-item--active" : ""}`}>
                   <button
                     className={`btn tab-btn${isActive ? " tab-btn--active" : ""}`}
-                    onClick={() => setSelectedTabId(tab.id)}
+                    onClick={() => { clearSelection(); setSelectedTabId(tab.id); }}
                   >
                     {tab.name}
                     {isActive && !isAdmin && (
@@ -209,7 +209,7 @@ function AppContent({ onLogout }) {
           </div>
         )}
 
-        {showTabEditor && canEdit && (
+        {showTabEditor && (canEdit || tabOptions.length === 0) && (
           <div className="tab-editor-row">
             <input
               type="text"
@@ -230,6 +230,16 @@ function AppContent({ onLogout }) {
       </div>
 
       {/* Haupt-Grid: Karte und Panel */}
+      {!isLoadingTabs && tabOptions.length === 0 && (
+        <div style={{ padding: "48px 24px", textAlign: "center", color: "#86868b" }}>
+          <p style={{ fontSize: "17px", marginBottom: "16px" }}>
+            Du hast noch keine Produktbereiche. Erstelle deinen ersten Bereich oder warte auf eine Einladung.
+          </p>
+          <button className="btn tab-new-btn" onClick={handleStartCreateTab}>
+            + Neuen Bereich anlegen
+          </button>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "20px", alignItems: "start" }}>
         <MapSection
           geoFeatures={geoFeaturesData}
